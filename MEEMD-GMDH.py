@@ -26,17 +26,20 @@ class MEEMDGMDH:
             noise_width = noise_amp * np.abs(np.max(self.timeseries) - np.min(self.timeseries))
             number_ensamble_memebers = len(self.timeseries)
             all_imfs = {}
+            all_res = []
             for i in range(number_ensamble_memebers):
-                all_imfs[i] = self.get_imfs(self.add_noise(noise_width))
-                print(all_imfs[i][0][:,0].shape)
-                if i == 3:
-                    break
-            fig,ax = plt.subplots(len(all_imfs))
-            for i in all_imfs:
-                #print(all_imfs[i][0][:4,0])
-                ax[i].plot(all_imfs[i][0][:,6])
-            fig.show()
+                imf, res = self.get_imfs(self.add_noise(noise_width))
+                for j in range(imf.shape[1]):
+                    if j in all_imfs:
+                        all_imfs[j].append(np.insert(imf[:, j], 0, i))
+                    else:
+                        all_imfs[j] = []
+                        all_imfs[j].append(np.insert(imf[:, j], 0, i))
+                    all_res.append(res)
+            return all_imfs, all_res
 
+    def create_median(self, imfs, res):
+        pass
 
 if __name__ == '__main__':
     df = pd.read_csv("snp500.csv")
