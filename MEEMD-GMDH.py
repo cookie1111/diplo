@@ -14,7 +14,7 @@ class MEEMDGMDH:
         return self.timeseries + np.random.normal(0, noise_amp, len(self.timeseries))
 
     def get_imfs(self, timeseries):
-        s = sift.sift(timeseries, max_imfs=12)
+        s = sift.sift(timeseries, max_imfs=9)
         imfs = np.array(s)
         res = self.timeseries - np.sum(imfs, axis=-1)
         return imfs, res
@@ -24,7 +24,7 @@ class MEEMDGMDH:
             pass
         else:
             noise_width = noise_amp * np.abs(np.max(self.timeseries) - np.min(self.timeseries))
-            number_ensamble_memebers = len(self.timeseries)
+            number_ensamble_memebers = 1000
             all_imfs = {}
             all_res = []
             for i in range(number_ensamble_memebers):
@@ -39,9 +39,17 @@ class MEEMDGMDH:
             return all_imfs, all_res
 
     def create_median(self, imfs, res):
-        pass
+        imfs_medians = []
+        for i in imfs:
+            #print(len(imfs),len(imfs[0]),len(imfs[0][0]))
+            nup = np.median(np.array(imfs[i]),axis=0)
+            imfs_medians.append(nup)
+        nup = np.median(np.array(res), axis=0)
+        res_median = [nup]
+        return imfs_medians, res_median
 
 if __name__ == '__main__':
     df = pd.read_csv("snp500.csv")
     m = MEEMDGMDH(np.array(df['Close']))
-    m.create_ensamble_imfs()
+    imfs, res = m.create_ensamble_imfs()
+    m.create_median(imfs,res)
