@@ -52,4 +52,5 @@ if __name__ == '__main__':
     df = pd.read_csv("snp500.csv")
     m = MEEMDGMDH(np.array(df['Close']))
     imfs, res = m.create_ensamble_imfs()
-    m.create_median(imfs,res)
+    imfs, res = m.create_median(imfs,res)
+    print(len(imfs),imfs[0].shape)
