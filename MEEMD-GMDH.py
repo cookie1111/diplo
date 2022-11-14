@@ -3,6 +3,8 @@ from emd import sift
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from utils import PolyLeastSquares
+from time import process_time_ns
 
 
 class MEEMDGMDH:
@@ -48,9 +50,36 @@ class MEEMDGMDH:
         res_median = [nup]
         return imfs_medians, res_median
 
+    def gmdh(self, train_x, train_y, select_x, select_y, test_x, test_y, loss_fn, polynomial):
+        pass
+        #return indexs, coefficients
+
 if __name__ == '__main__':
     df = pd.read_csv("snp500.csv")
-    m = MEEMDGMDH(np.array(df['Close']))
-    imfs, res = m.create_ensamble_imfs()
-    imfs, res = m.create_median(imfs,res)
-    print(len(imfs),imfs[0].shape)
+    #m = MEEMDGMDH(np.array(df['Close']))
+    #imfs, res = m.create_ensamble_imfs()
+    #imfs, res = m.create_median(imfs,res)
+    #print(len(imfs),imfs[0].shape)
+    p = PolyLeastSquares((0,1),[1,5,4,3,2,7],True)
+    s = df['Close']
+    ctr = 0
+    start = process_time_ns()
+    for win in s.rolling(window=7,min_periods=7):
+        if ctr < 7:
+            ctr += 1
+            continue
+        p.calc_quadratic_matrix(list(win))
+
+    matrix = process_time_ns() - start
+    print(f"Speed quad matrix: {matrix}")
+
+    ctr = 0
+    start = process_time_ns()
+    for win in s.rolling(window=7,min_periods=7):
+        if ctr < 7:
+            ctr += 1
+            continue
+        p.calc_quadratic(list(win))
+    no_matrix = process_time_ns() - start
+    print(f"Speed quad: {no_matrix}")
+    print(f"matrix - no_matrix = {matrix-no_matrix}")

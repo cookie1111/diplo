@@ -16,7 +16,7 @@ class PolyLeastSquares:
         :param c:
         :return:
         """
-        return c[0], np.array([c[1],c[2]], np.array([[c[3],c[5]/2],[c[5]/2, c[4]]]))
+        return c[0], np.array([c[1],c[2]]), np.array([[c[3],c[5]/2],[c[5]/2, c[4]]])
 
     def calc_quadratic(self, prev):
         if self.first:
