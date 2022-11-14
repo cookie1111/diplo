@@ -68,7 +68,7 @@ if __name__ == '__main__':
         if ctr < 7:
             ctr += 1
             continue
-        p.calc_quadratic_matrix(list(win))
+        c = p.calc_quadratic_matrix(list(win))
 
     matrix = process_time_ns() - start
     print(f"Speed quad matrix: {matrix}")
@@ -79,7 +79,9 @@ if __name__ == '__main__':
         if ctr < 7:
             ctr += 1
             continue
-        p.calc_quadratic(list(win))
+        d = p.calc_quadratic(list(win))
     no_matrix = process_time_ns() - start
     print(f"Speed quad: {no_matrix}")
     print(f"matrix - no_matrix = {matrix-no_matrix}")
+    print(f"res: {c}, {d}")
+

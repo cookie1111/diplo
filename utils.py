@@ -5,8 +5,6 @@ class PolyLeastSquares:
 
     def __init__(self, input_indexes, coefficients, first = False):
         self.x1 , self.x2 = input_indexes
-        self.c_non_matrix = coefficients
-        self.coefficients = self.to_lin_alg(coefficients)
         self.first = first
 
     @staticmethod
@@ -19,6 +17,14 @@ class PolyLeastSquares:
         return c[0], np.array([c[1],c[2]]), np.array([[c[3],c[5]/2],[c[5]/2, c[4]]])
 
     def calc_quadratic(self, prev):
+        """
+        calculate this neurons output based on previous layers input
+
+        :param prev: previous layers neurons
+        :return: result of the quadratic function
+        """
+        if not hasattr(self, "c_non_matrix"):
+            return -1
         if self.first:
             x1 = prev[self.x1]
             x2 = prev[self.x2]
@@ -36,6 +42,8 @@ class PolyLeastSquares:
         :param prev: previous layers neurons
         :return: result of the quadratic function
         """
+        if not hasattr(self, "coefficients"):
+            return -1
         if self.first:
             x1 = prev[self.x1]
             x2 = prev[self.x2]
@@ -45,4 +53,15 @@ class PolyLeastSquares:
 
         c = np.array([x1, x2])
 
-        return self.coefficients[0]+np.dot(self.coefficients[1],c)+np.dot(c, np.dot(self.coefficients[2],c.T))
+        return self.coefficients[0]+np.dot(self.coefficients[1], c)+np.dot(c, np.dot(self.coefficients[2], c.T))
+
+    # storage of previous input vs calculating it every time...
+    def regression_of_function(self, input_x1, input_x2, Y):
+
+        c = np.array([input_x1, input_x2])
+        A = np.array([input_x1 * 0 + 1, input_x1, input_x2, input_x1 ** 2, input_x2 ** 2, input_x1 * input_x2]).T
+
+        coeff, r, rank, s = np.linalg.lstsq(A,Y)
+        self.c_non_matrix = coeff
+        self.coefficients = self.to_lin_alg(coeff)
+        return 1
