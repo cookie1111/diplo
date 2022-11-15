@@ -50,8 +50,14 @@ class MEEMDGMDH:
         res_median = [nup]
         return imfs_medians, res_median
 
-    def gmdh(self, train_x, train_y, select_x, select_y, test_x, test_y, loss_fn, polynomial):
-        pass
+    def gmdh(self, train_x, train_y, select_x, select_y, test_x, test_y, fitness_fn, polynomial, fitness_thresh):
+        layers = []
+        while True:
+
+
+
+            if True:
+                pass
         #return indexs, coefficients
 
 if __name__ == '__main__':
@@ -63,13 +69,11 @@ if __name__ == '__main__':
     p = PolyLeastSquares((0,1),[1,5,4,3,2,7],True)
     s = df['Close']
     ctr = 0
-    start = process_time_ns()
-    for win in s.rolling(window=7,min_periods=7):
-        if ctr < 7:
-            ctr += 1
-            continue
-        c = p.calc_quadratic_matrix(list(win))
 
+    # maybe good for parallel proccessing atm its useless doe
+    start = process_time_ns()
+    matrix = np.lib.stride_tricks.sliding_window_view(s,window_shape=7)
+    p.calc_quadratic_matrix(matrix)
     matrix = process_time_ns() - start
     print(f"Speed quad matrix: {matrix}")
 
@@ -83,5 +87,5 @@ if __name__ == '__main__':
     no_matrix = process_time_ns() - start
     print(f"Speed quad: {no_matrix}")
     print(f"matrix - no_matrix = {matrix-no_matrix}")
-    print(f"res: {c}, {d}")
+    #print(f"res: {c}, {d}")
 
