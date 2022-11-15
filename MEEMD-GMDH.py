@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from utils import PolyLeastSquares
 from time import process_time_ns
 
+TEST = 2
 
 class MEEMDGMDH:
 
@@ -69,23 +70,27 @@ if __name__ == '__main__':
     p = PolyLeastSquares((0,1),[1,5,4,3,2,7],True)
     s = df['Close']
     ctr = 0
+    if TEST == 1:
+        # maybe good for parallel proccessing atm its useless doe
+        start = process_time_ns()
+        matrix = np.lib.stride_tricks.sliding_window_view(s,window_shape=7)
+        p.calc_quadratic_matrix(matrix)
+        matrix = process_time_ns() - start
+        print(f"Speed quad matrix: {matrix}")
 
-    # maybe good for parallel proccessing atm its useless doe
-    start = process_time_ns()
-    matrix = np.lib.stride_tricks.sliding_window_view(s,window_shape=7)
-    p.calc_quadratic_matrix(matrix)
-    matrix = process_time_ns() - start
-    print(f"Speed quad matrix: {matrix}")
-
-    ctr = 0
-    start = process_time_ns()
-    for win in s.rolling(window=7,min_periods=7):
-        if ctr < 7:
-            ctr += 1
-            continue
-        d = p.calc_quadratic(list(win))
-    no_matrix = process_time_ns() - start
-    print(f"Speed quad: {no_matrix}")
-    print(f"matrix - no_matrix = {matrix-no_matrix}")
-    #print(f"res: {c}, {d}")
+        ctr = 0
+        start = process_time_ns()
+        for win in s.rolling(window=7,min_periods=7):
+            if ctr < 7:
+                ctr += 1
+                continue
+            d = p.calc_quadratic(list(win))
+        no_matrix = process_time_ns() - start
+        print(f"Speed quad: {no_matrix}")
+        print(f"matrix - no_matrix = {matrix-no_matrix}")
+        #print(f"res: {c}, {d}")
+    if TEST == 2:
+        matrix = np.lib.stride_tricks.sliding_window_view(s, window_shape=8)
+        print(matrix[:, :7].shape, matrix[:, -1:].shape)
+        #p.regression_of_function(matrix[:, :7], matrix[:, -1:])
 
