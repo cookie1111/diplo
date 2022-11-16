@@ -1,7 +1,7 @@
 import numpy as np
 from itertools import combinations as comb
 import concurrent.futures as ft
-from typing import Callable
+from typing import Callable, Union
 from math import floor
 
 
@@ -26,7 +26,7 @@ def least_squares_error(z: np.ndarray, y: np.ndarray) -> float:
 
 
 class GMDH:
-    def __init__(self, inputs, y, max_neurons_per_layer=128, err_fn=least_squares_error, err_leeway=1, split_train_select=0.5):
+    def __init__(self, inputs, y, max_neurons_per_layer=128, err_fn=least_squares_error, err_leeway=1, split_train_select=0.75):
         self.layers = []
         self.inputs = inputs
         self.y = y
@@ -39,7 +39,7 @@ class GMDH:
     def train(self):
         loss_cnt = 0
         print(f"Starting training")
-        self.layers.append(GMDHLayer(self.inputs, 2000, first_layer=True))
+        self.layers.append(GMDHLayer(self.inputs, 200000, first_layer=True))
         min_loss = self.layers[-1].train_layer(prev=self.inputs, y=self.y, fitness_fn=self.err_fn,
                                                split=self.split_train_select)
         while True:
@@ -71,7 +71,7 @@ class GMDH:
 
 class GMDHLayer:
 
-    def __init__(self, inputs: np.ndarray | "GMDHLayer", threshold: float = None, first_layer: bool = False,
+    def __init__(self, inputs: Union[np.ndarray , "GMDHLayer"], threshold: float = None, first_layer: bool = False,
                  parallel: bool = False, workers: int = 1, max_neurons: int = 128) -> None:
         """
         initializes the layer
@@ -101,7 +101,7 @@ class GMDHLayer:
     def __getitem__(self, i):
         return self.neurons[i]
 
-    def train_layer(self, prev: np.ndarray | "GMDHLayer", y: np.ndarray, fitness_fn: Callable = least_squares_error,
+    def train_layer(self, prev: Union[np.ndarray , "GMDHLayer"], y: np.ndarray, fitness_fn: Callable = least_squares_error,
                     split: float = 0.5) -> int:
         """
         Trains layer and selects, which neurons to keep from previous layers, which to replace and which new neurons
@@ -127,20 +127,26 @@ class GMDHLayer:
                     neuro = PolyLeastSquares(neuron, through=True, first=True)
                     err = neuro.regress_and_test(prev, y, fitness_fn, split)
                     accepted_comp.append((err[1], neuron))
+                accepted_comp.sort()
+                threshold = accepted_comp[floor(len(accepted_comp)/2)][1]
             else:
                 for neuron in range(len(self.prev_layer)):
                     neuro = PolyLeastSquares(neuron, through=True, first=True)
                     err = neuro.regress_and_test(prev, y, fitness_fn, split)
                     accepted_comp.append((err[1], neuron))
+                accepted_comp.sort()
+                threshold = accepted_comp[floor(len(accepted_comp) / 2)][1]
 
             # test new neurons and add them to queue if condition is satisfied
             while len(self.neurons) > 0:
                 neuron = self.neurons.pop()
-                error = neuron.regression_of_function(prev, y)
-                if error[1] < self.threshold:
+                error = neuron.regress_and_test(prev, y, fitness_fn, split)
+                if error[1] < threshold:
                     accepted_comp.append((error[1], neuron))
-
-            self.neurons = accepted_comp.sort()[:self.max_neurons]
+            print(accepted_comp[0],accepted_comp[1])
+            accepted_comp.sort()
+            self.neurons = accepted_comp
+            print(self.neurons)
 
             return self.neurons[0][0]
 
@@ -169,7 +175,7 @@ class PolyLeastSquares:
             self.c_non_matrix = coefficients
             self.coefficients = None if not coefficients else self.to_lin_alg(coefficients)
             self.x1, self.x2 = input_indexes
-            self.first = first
+        self.first = first
 
     @staticmethod
     def to_lin_alg(c):
@@ -216,7 +222,7 @@ class PolyLeastSquares:
         uno = np.matmul(self.coefficients[2], c)
         dos = (uno.T * c.T).sum(-1)
         tres = np.dot(c.T, self.coefficients[1])
-        print(tres.shape)
+        #print(tres.shape)
         return self.coefficients[0] + tres + dos
 
     def get_prev(self, prev: np.ndarray | GMDHLayer, matrix: bool = False) -> tuple[list[float], list[float]]\
@@ -305,7 +311,7 @@ class PolyLeastSquares:
             test_x1 = input_x1[floor(len(input_x1) * split):]
             test_x2 = input_x2[floor(len(input_x2) * split):]
             test_y = y[floor(len(y) * split):]
-            train_res = self.regression_of_function(train_x1, train_x2, train_y, fitness_fn= fitness_fn)
+            train_res = self.regression_of_function(train_x1, train_x2, train_y, fitness_fn=fitness_fn)
         else:
             input_x1 = self.get_prev(prev)
             train_x1 = input_x1[:floor(len(input_x1) * split)]
@@ -313,7 +319,7 @@ class PolyLeastSquares:
             test_x2 = None
             train_y = y[:floor(len(y) * split)]
             test_y = y[floor(len(y) * split):]
-            train_res = self.get_error(train_x1,None, y, fitness_fn)
+            train_res = self.get_error(train_x1, None, train_y, fitness_fn)
 
         selection_res = self.get_error(test_x1, test_x2, test_y, fitness_fn)
         return train_res, selection_res
