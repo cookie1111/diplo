@@ -73,7 +73,7 @@ if __name__ == '__main__':
     if TEST == 1:
         # maybe good for parallel proccessing atm its useless doe
         start = process_time_ns()
-        matrix = np.lib.stride_tricks.sliding_window_view(s[0:1000],window_shape=7)
+        matrix = np.lib.stride_tricks.sliding_window_view(s[0:10],window_shape=7)
         c = p.calc_quadratic_matrix(matrix)
         m = process_time_ns() - start
         print(f"Speed quad matrix: {m}")
@@ -83,7 +83,7 @@ if __name__ == '__main__':
         no_matrix = process_time_ns() - start
         print(f"Speed quad: {no_matrix}")
         print(f"matrix - no_matrix = {m-no_matrix}")
-        print(f"res: {c.shape}, {len(d)}")
+        print(f"res: {c}, {d}")
     if TEST == 2:
         matrix = np.lib.stride_tricks.sliding_window_view(s, window_shape=8)
         print(matrix[:, :7].shape, matrix[:, -1:].shape)

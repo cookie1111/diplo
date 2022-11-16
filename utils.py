@@ -4,10 +4,9 @@ import concurrent.futures as ft
 from typing import Callable
 
 
-
 class GMDHLayer:
 
-    def __init__(self, inputs, threshold = None, first_layer=False, parallel = False, workers = 1):
+    def __init__(self, inputs, threshold=None, first_layer=False, parallel=False, workers=1):
         """
         initializes the layer
 
@@ -21,7 +20,8 @@ class GMDHLayer:
         """
 
         self.neurons = [PolyLeastSquares(inputs, first=first_layer) for inputs in (comb(range(len(inputs)), 2) if
-                        not first_layer else comb(range(inputs.shape[1], 2)))]
+                                                                                   not first_layer else comb(
+            range(inputs.shape[1], 2)))]
         self.parallel = parallel
         self.workers = workers
         self.threshold = threshold
@@ -34,8 +34,7 @@ class GMDHLayer:
     def check_layer_fit(self, x, y):
         pass
 
-
-    def train_layer(self,prev, y):
+    def train_layer(self, prev, y):
         # entries are tuples of (fitness and neurons)
         accepted_comp = []
         if self.parallel:
@@ -69,7 +68,7 @@ class PolyLeastSquares:
         else:
             self.c_non_matrix = coefficients
             self.coefficients = None if not coefficients else self.to_lin_alg(coefficients)
-            self.x1 , self.x2 = input_indexes
+            self.x1, self.x2 = input_indexes
             self.first = first
 
     @staticmethod
@@ -80,7 +79,7 @@ class PolyLeastSquares:
         :param c:
         :return:
         """
-        return c[0], np.array([c[1],c[2]]), np.array([[c[3],c[5]/2],[c[5]/2, c[4]]])
+        return c[0], np.array([c[1], c[2]]), np.array([[c[3], c[5] / 2], [c[5] / 2, c[4]]])
 
     def calc_quadratic(self, prev: np.ndarray | GMDHLayer) -> list[float]:
         """
@@ -95,8 +94,9 @@ class PolyLeastSquares:
             return -1
         x1, x2 = self.get_prev(prev)
 
-        return [self.c_non_matrix[0] + self.c_non_matrix[1]*x1 + self.c_non_matrix[2]*x2 + self.c_non_matrix[3]*(x1**2) +\
-               self.c_non_matrix[4]*(x2**2) + self.c_non_matrix[5]*x1*x2 for x1,x2 in zip(x1,x2)]
+        return [self.c_non_matrix[0] + self.c_non_matrix[1] * x1 + self.c_non_matrix[2] * x2 + self.c_non_matrix[3] * (
+                    x1 ** 2) + self.c_non_matrix[4] * (x2 ** 2) + self.c_non_matrix[5] * x1 * x2 for x1, x2 in zip(x1,
+                                                                                                                   x2)]
 
     def calc_quadratic_matrix(self, prev: np.ndarray | GMDHLayer) -> np.ndarray:
         """
@@ -106,15 +106,15 @@ class PolyLeastSquares:
         :return: result of the quadratic function
         """
         if self.through:
-            return self.get_prev(prev,matrix=True)
+            return self.get_prev(prev, matrix=True)
         if self.coefficients is None:
             return -1
-        x1,x2 = self.get_prev(prev,matrix=True)
+        x1, x2 = self.get_prev(prev, matrix=True)
 
         c = np.array([x1, x2])
-        return self.coefficients[0]+np.dot(self.coefficients[1], c)+ np.dot(c.T,np.dot(self.coefficients[2], c))
+        return self.coefficients[0] + np.dot(self.coefficients[1], c) + np.dot(c.T, np.dot(self.coefficients[2], c))
 
-    def get_prev(self, prev: np.ndarray | GMDHLayer, matrix: bool = False) -> tuple[list[float],list[float]]:
+    def get_prev(self, prev: np.ndarray | GMDHLayer, matrix: bool = False) -> tuple[list[float], list[float]]:
         """
         Fetches previous layers neurons(x1 and x2) outputs
 
@@ -141,7 +141,8 @@ class PolyLeastSquares:
         return x1, x2
 
     # storage of previous input vs calculating it every time...
-    def regression_of_function(self, prev: np.ndarray | GMDHLayer, y: np.ndarray, fitness_fn: Callable = None) -> object:
+    def regression_of_function(self, prev: np.ndarray | GMDHLayer, y: np.ndarray,
+                               fitness_fn: Callable = None) -> object:
         """
         Runs least squares regression to solve for A,B,C,D,E,F in:
          A + B * u + C * v + D * u^2 + E * v^2 + F * u * v
@@ -152,7 +153,7 @@ class PolyLeastSquares:
         :return: returns 1 if successful (will be changed to loss in future)
         """
         input_x1, input_x2 = self.get_prev(prev)
-        #c = np.array([prev[self.x1],prev[self.x2]])
+        # c = np.array([prev[self.x1],prev[self.x2]])
         A = np.array([input_x1 * 0 + 1, input_x1, input_x2, input_x1 ** 2, input_x2 ** 2, input_x1 * input_x2]).T
 
         # euclidean 2-norm based residual
@@ -161,10 +162,7 @@ class PolyLeastSquares:
         self.coefficients = self.to_lin_alg(coeff)
 
         # calculating fitness
-        for x1,x2 in zip(input_x1,input_x2):
+        for x1, x2 in zip(input_x1, input_x2):
             self.calc_quadratic()
 
         return r
-
-
-
