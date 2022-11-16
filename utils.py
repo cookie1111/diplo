@@ -27,7 +27,8 @@ def least_squares_error(z: np.ndarray, y: np.ndarray) -> float:
 
 class GMDHLayer:
 
-    def __init__(self, inputs: np.ndarray | "GMDHLayer", threshold: float = None, first_layer: bool = False, parallel: bool = False, workers: int = 1, max_neurons: int = 128) -> None:
+    def __init__(self, inputs: np.ndarray | "GMDHLayer", threshold: float = None, first_layer: bool = False,
+                 parallel: bool = False, workers: int = 1, max_neurons: int = 128) -> None:
         """
         initializes the layer
 
@@ -53,11 +54,11 @@ class GMDHLayer:
     def __getitem__(self, i):
         return self.neurons[i]
 
-
     def train_layer(self, prev: np.ndarray | "GMDHLayer", y: np.ndarray, fitness_fn: Callable = least_squares_error,
                     split: float = 0.5) -> int:
         """
-
+        Trains layer and selects, which neurons to keep from previous layers, which to replace and which new neurons
+        to add
         :param prev: previous layer or input if the current layer is the first layer
         :param y: array of ground truths
         :param fitness_fn: fitness function to be used for error calculation
@@ -70,22 +71,29 @@ class GMDHLayer:
                 futs = [executor.submit(neuron.regression_of_function(prev, y)) for neuron in self.neurons]
                 ft.wait(futs)
         else:
+            # creation and addition of previous layers neurons as pass-through neurons
             if self.first_layer:
                 # create through neurons of previous layer
                 for neuron in range(self.prev_layer.shape[1]):
                     neuro = PolyLeastSquares(neuron, through=True, first=True)
-                    err = neuro.regress_and_test(prev,y,fitness_fn,split)
+                    err = neuro.regress_and_test(prev, y, fitness_fn, split)
+                    accepted_comp.append((err[1], neuron))
+            else:
+                for neuron in range(len(self.prev_layer)):
+                    neuro = PolyLeastSquares(neuron, through=True, first=True)
+                    err = neuro.regress_and_test(prev, y, fitness_fn, split)
                     accepted_comp.append((err[1], neuron))
 
-
-            # test new neurons
+            # test new neurons and add them to queue if condition is satisfied
             while len(self.neurons) > 0:
                 neuron = self.neurons.pop()
                 error = neuron.regression_of_function(prev, y)
-                if error < self.threshold:
-                    accepted_comp.append((error, neuron))
+                if error[1] < self.threshold:
+                    accepted_comp.append((error[1], neuron))
 
-                    
+            self.neurons = accepted_comp.sort()[:self.max_neurons]
+
+            return 1
 
 
 # TODO: at a later date add the option of storing or not storing previous layers outputs
