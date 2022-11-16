@@ -2,6 +2,7 @@ import numpy as np
 from itertools import combinations as comb
 import concurrent.futures as ft
 from typing import Callable
+from math import floor
 
 
 def least_squares_error(z: np.ndarray, y: np.ndarray) -> float:
@@ -26,7 +27,7 @@ def least_squares_error(z: np.ndarray, y: np.ndarray) -> float:
 
 class GMDHLayer:
 
-    def __init__(self, inputs, threshold=None, first_layer=False, parallel=False, workers=1):
+    def __init__(self, inputs: np.ndarray | "GMDHLayer", threshold: float = None, first_layer: bool = False, parallel: bool = False, workers: int = 1, max_neurons: int = 128) -> None:
         """
         initializes the layer
 
@@ -37,11 +38,13 @@ class GMDHLayer:
         :param first_layer: check if its first layer since that would mean we don't get a previous layer but numpy array
         :param parallel: do we want to parallelize the workload
         :param workers: number of workers to use in parallelization
+        :param max_neurons: max amount of neurons in layer
         """
-
+        self.first_layer = first_layer
+        self.max_neurons = max_neurons
         self.neurons = [PolyLeastSquares(inputs, first=first_layer) for inputs in (comb(range(len(inputs)), 2) if
                                                                                    not first_layer else comb(
-            range(inputs.shape[1], 2)))]
+            range(inputs.shape[1]), 2))]
         self.parallel = parallel
         self.workers = workers
         self.threshold = threshold
@@ -50,11 +53,16 @@ class GMDHLayer:
     def __getitem__(self, i):
         return self.neurons[i]
 
-    # this will probably be done in fitting process in the neuron
-    def check_layer_fit(self, x, y):
-        pass
 
-    def train_layer(self, prev, y):
+    def train_layer(self, prev: np.ndarray | "GMDHLayer", y: np.ndarray, fitness_fn: Callable = least_squares_error,
+                    split: float = 0.5) -> int:
+        """
+
+        :param prev: previous layer or input if the current layer is the first layer
+        :param y: array of ground truths
+        :param fitness_fn: fitness function to be used for error calculation
+        :param split: ratio between training and selection sets
+        """
         # entries are tuples of (fitness and neurons)
         accepted_comp = []
         if self.parallel:
@@ -62,9 +70,22 @@ class GMDHLayer:
                 futs = [executor.submit(neuron.regression_of_function(prev, y)) for neuron in self.neurons]
                 ft.wait(futs)
         else:
+            if self.first_layer:
+                # create through neurons of previous layer
+                for neuron in range(self.prev_layer.shape[1]):
+                    neuro = PolyLeastSquares(neuron, through=True, first=True)
+                    err = neuro.regress_and_test(prev,y,fitness_fn,split)
+                    accepted_comp.append((err[1], neuron))
+
+
+            # test new neurons
             while len(self.neurons) > 0:
                 neuron = self.neurons.pop()
-                neuron.regression_of_function(prev, y)
+                error = neuron.regression_of_function(prev, y)
+                if error < self.threshold:
+                    accepted_comp.append((error, neuron))
+
+                    
 
 
 # TODO: at a later date add the option of storing or not storing previous layers outputs
@@ -74,7 +95,7 @@ class PolyLeastSquares:
                  through: bool = False) -> None:
         """
         Creates a polynomial least squares neuron
-        
+
         :param input_indexes: index of previous layers neurons that are combined in this neuron, in case of through being
         True there is only one index here
         :param coefficients: if we want to predefine coefficients in the current neuron
@@ -101,35 +122,35 @@ class PolyLeastSquares:
         """
         return c[0], np.array([c[1], c[2]]), np.array([[c[3], c[5] / 2], [c[5] / 2, c[4]]])
 
-    def calc_quadratic(self, prev: np.ndarray | GMDHLayer) -> list[float]:
+    def calc_quadratic(self, x1: np.ndarray, x2: np.ndarray | None = None) -> list[float]:
         """
         calculate this neurons output based on previous layers input
 
-        :param prev: previous layer
+        :param x1: results of first input from previous layer
+        :param x2: results of second input from previous layer can be None if it's a pass through neuron
         :return: result of the quadratic function
         """
         if self.through:
-            return self.get_prev(prev)
+            return x1
         if self.c_non_matrix is None:
             return -1
-        x1, x2 = self.get_prev(prev)
 
         return [self.c_non_matrix[0] + self.c_non_matrix[1] * x1 + self.c_non_matrix[2] * x2 + self.c_non_matrix[3] * (
                     x1 ** 2) + self.c_non_matrix[4] * (x2 ** 2) + self.c_non_matrix[5] * x1 * x2 for x1, x2 in zip(x1,
                                                                                                                    x2)]
 
-    def calc_quadratic_matrix(self, prev: np.ndarray | GMDHLayer) -> np.ndarray:
+    def calc_quadratic_matrix(self, x1: np.ndarray, x2: np.ndarray | None = None) -> np.ndarray:
         """
         calculate this neurons output based on previous layers input
 
-        :param prev: previous layers neurons
+        :param x1: results of first input from previous layer
+        :param x2: results of second input from previous layer can be None if it's a pass through neuron
         :return: result of the quadratic function
         """
         if self.through:
-            return self.get_prev(prev, matrix=True)
+            return x1
         if self.coefficients is None:
             return -1
-        x1, x2 = self.get_prev(prev, matrix=True)
 
         c = np.array([x1, x2])
         # Z = N.diag(X.dot(Y)) -> Z = (X * Y.T).sum(-1)
@@ -166,18 +187,20 @@ class PolyLeastSquares:
         return x1, x2
 
     # storage of previous input vs calculating it every time...
-    def regression_of_function(self, prev: np.ndarray | GMDHLayer, y: np.ndarray,
-                               fitness_fn: Callable = least_squares_error) -> object:
+    def regression_of_function(self, input_x1: np.ndarray , input_x2: np.ndarray | None, y: np.ndarray,
+                               fitness_fn: Callable = least_squares_error) -> float:
         """
         Runs least squares regression to solve for A,B,C,D,E,F in:
          A + B * u + C * v + D * u^2 + E * v^2 + F * u * v
 
+        :param input_x1: first inputs results
+        :param input_x2: second inputs results can be None if its a pass through neuron
         :param fitness_fn:
-        :param prev: previous layer
         :param y: target variable
-        :return: returns 1 if successful (will be changed to loss in future)
+        :return: returns error of the function
         """
-        input_x1, input_x2 = self.get_prev(prev)
+
+
         # c = np.array([prev[self.x1],prev[self.x2]])
         A = np.array([input_x1 * 0 + 1, input_x1, input_x2, input_x1 ** 2, input_x2 ** 2, input_x1 * input_x2]).T
 
@@ -187,5 +210,51 @@ class PolyLeastSquares:
         self.coefficients = self.to_lin_alg(coeff)
 
         # calculating fitness
-        res = self.calc_quadratic_matrix(prev)
+
+        return self.get_error(input_x1, input_x2, y, fitness_fn)
+
+    def get_error(self, input_x1: np.ndarray, input_x2: np.ndarray | None, y: np.ndarray,
+                  fitness_fn: Callable = least_squares_error) -> float:
+        """
+        Calculates error between the prediction and ground truth based on passed function
+        :param input_x1: previous layers first neurons output
+        :param input_x2:  previous layers second neurons output or None if it's a pass through layer
+        :param y: ground truth for predicted variable
+        :param fitness_fn: function to use for calculating the error has to have 1st argument be the predicted values
+        and second argument the ground truth
+        :return: calculated error between prediction and ground truth
+        """
+        res = self.calc_quadratic_matrix(input_x1, input_x2)
         return fitness_fn(res, y)
+
+    def regress_and_test(self, prev: GMDHLayer | np.ndarray, y: np.ndarray, fitness_fn: Callable = least_squares_error,
+                         split: float = 0.5) -> tuple[float, float]:
+        """
+        Regresses the neuron and calculates both train and selection error for said neuron
+
+        :param prev: complete previous layer in case this is first layer the previous layer is inputs
+        :param y: ground truth values to be predicted
+        :param fitness_fn: function for calculating the error between predicted and ground truth values
+        :param split: ratio between train and selection set
+        :return: error on train set, error on selection set(selection set is the one that matters)
+        """
+        if not self.through:
+            input_x1, input_x2 = self.get_prev(prev)
+            train_x1 = input_x1[:floor(len(input_x1) * split)]
+            train_x2 = input_x2[:floor(len(input_x2) * split)]
+            train_y = y[:floor(len(y) * split)]
+            test_x1 = input_x1[floor(len(input_x1) * split):]
+            test_x2 = input_x2[floor(len(input_x2) * split):]
+            test_y = y[floor(len(y) * split):]
+            train_res = self.regression_of_function(train_x1, train_x2, train_y, fitness_fn= fitness_fn)
+        else:
+            input_x1 = self.get_prev(prev)
+            train_x1 = input_x1[:floor(len(input_x1) * split)]
+            test_x1 = input_x1[floor(len(input_x1) * split):]
+            test_x2 = None
+            train_y = y[:floor(len(y) * split)]
+            test_y = y[floor(len(y) * split):]
+            train_res = self.get_error(train_x1,None, y, fitness_fn)
+
+        selection_res = self.get_error(test_x1, test_x2, test_y, fitness_fn)
+        return train_res, selection_res
