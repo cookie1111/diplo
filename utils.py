@@ -25,6 +25,50 @@ def least_squares_error(z: np.ndarray, y: np.ndarray) -> float:
     return np.sum(np.square(y-z))
 
 
+class GMDH:
+    def __init__(self, inputs, y, max_neurons_per_layer=128, err_fn=least_squares_error, err_leeway=1, split_train_select=0.5):
+        self.layers = []
+        self.inputs = inputs
+        self.y = y
+        self.max_neurons = max_neurons_per_layer
+        self.err_fn = err_fn
+        self.err_leeway = err_leeway
+        self.split_train_select = split_train_select
+        self.can_evaluate = False
+
+    def train(self):
+        loss_cnt = 0
+        print(f"Starting training")
+        self.layers.append(GMDHLayer(self.inputs, 2000, first_layer=True))
+        min_loss = self.layers[-1].train_layer(prev=self.inputs, y=self.y, fitness_fn=self.err_fn,
+                                               split=self.split_train_select)
+        while True:
+            print(f"Training layer {len(self.layers)}")
+            self.layers.append(GMDHLayer(inputs=self.layers[-1]))
+            cur_loss = self.layers[-1].train_layer(prev=self.inputs, y=self.y, fitness_fn=self.err_fn,
+                                                   split=self.split_train_select)
+            if min_loss < cur_loss:
+                if loss_cnt == self.err_leeway:
+                    print(f"Layer {len(self.layers)} has triggered the train stop condition")
+                    break
+                else:
+                    print(f"Layer {len(self.layers)} has underperformed")
+                    loss_cnt = loss_cnt + 1
+            else:
+                min_loss = cur_loss
+                loss_cnt = 0
+
+        # neuron with the smallest error is always first in the layer
+        self.layers = self.layers[:-loss_cnt]
+        self.layers[-1].reduce_to_best_neuron()
+
+        self.can_evaluate = True
+        print("Model has finished training")
+
+    def test(self):
+        pass
+
+
 class GMDHLayer:
 
     def __init__(self, inputs: np.ndarray | "GMDHLayer", threshold: float = None, first_layer: bool = False,
@@ -51,6 +95,9 @@ class GMDHLayer:
         self.threshold = threshold
         self.prev_layer = inputs
 
+    def __len__(self):
+        return len(self.neurons)
+
     def __getitem__(self, i):
         return self.neurons[i]
 
@@ -59,10 +106,12 @@ class GMDHLayer:
         """
         Trains layer and selects, which neurons to keep from previous layers, which to replace and which new neurons
         to add
+
         :param prev: previous layer or input if the current layer is the first layer
         :param y: array of ground truths
         :param fitness_fn: fitness function to be used for error calculation
         :param split: ratio between training and selection sets
+        :return: the minimum error of all the neurons
         """
         # entries are tuples of (fitness and neurons)
         accepted_comp = []
@@ -93,8 +142,10 @@ class GMDHLayer:
 
             self.neurons = accepted_comp.sort()[:self.max_neurons]
 
-            return 1
+            return self.neurons[0][0]
 
+    def reduce_to_best_neuron(self):
+        self.neurons = self.neurons[0]
 
 # TODO: at a later date add the option of storing or not storing previous layers outputs
 class PolyLeastSquares:
@@ -168,7 +219,8 @@ class PolyLeastSquares:
         print(tres.shape)
         return self.coefficients[0] + tres + dos
 
-    def get_prev(self, prev: np.ndarray | GMDHLayer, matrix: bool = False) -> tuple[list[float], list[float]]:
+    def get_prev(self, prev: np.ndarray | GMDHLayer, matrix: bool = False) -> tuple[list[float], list[float]]\
+                                                                              | list[float]:
         """
         Fetches previous layers neurons(x1 and x2) outputs
 
@@ -207,7 +259,6 @@ class PolyLeastSquares:
         :param y: target variable
         :return: returns error of the function
         """
-
 
         # c = np.array([prev[self.x1],prev[self.x2]])
         A = np.array([input_x1 * 0 + 1, input_x1, input_x2, input_x1 ** 2, input_x2 ** 2, input_x1 * input_x2]).T
