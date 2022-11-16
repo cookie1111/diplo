@@ -4,6 +4,18 @@ import concurrent.futures as ft
 from typing import Callable
 
 
+def least_squares_error(z: np.ndarray, y: np.ndarray) -> float:
+    """
+    Least squares error calculated:
+    err = sum((y-z)^2)
+
+    :param z: calculated predictions
+    :param y: ground truth
+    :return: least squares error
+    """
+    return np.sum(np.square(y-z))
+
+
 class GMDHLayer:
 
     def __init__(self, inputs, threshold=None, first_layer=False, parallel=False, workers=1):
@@ -147,7 +159,7 @@ class PolyLeastSquares:
 
     # storage of previous input vs calculating it every time...
     def regression_of_function(self, prev: np.ndarray | GMDHLayer, y: np.ndarray,
-                               fitness_fn: Callable = None) -> object:
+                               fitness_fn: Callable = least_squares_error) -> object:
         """
         Runs least squares regression to solve for A,B,C,D,E,F in:
          A + B * u + C * v + D * u^2 + E * v^2 + F * u * v
@@ -167,7 +179,5 @@ class PolyLeastSquares:
         self.coefficients = self.to_lin_alg(coeff)
 
         # calculating fitness
-        for x1, x2 in zip(input_x1, input_x2):
-            self.calc_quadratic()
-
-        return r
+        res = self.calc_quadratic_matrix(prev)
+        return fitness_fn(res, y)

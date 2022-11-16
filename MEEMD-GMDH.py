@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from utils import PolyLeastSquares
 from time import process_time_ns
 
-TEST = 1
+TEST = 2
 
 class MEEMDGMDH:
 
