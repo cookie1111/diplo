@@ -13,6 +13,14 @@ def least_squares_error(z: np.ndarray, y: np.ndarray) -> float:
     :param y: ground truth
     :return: least squares error
     """
+    if (z is None) or (y is None):
+        print("One of the inputs is None")
+        return -1
+
+    if len(z) != len(y):
+        print(f"{len(z)} is not the same as {len(y)}")
+        return -1
+
     return np.sum(np.square(y-z))
 
 
