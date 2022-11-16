@@ -82,7 +82,7 @@ class PolyLeastSquares:
         """
         return c[0], np.array([c[1],c[2]]), np.array([[c[3],c[5]/2],[c[5]/2, c[4]]])
 
-    def calc_quadratic(self, prev: GMDHLayer) -> float:
+    def calc_quadratic(self, prev: np.ndarray | GMDHLayer) -> list[float]:
         """
         calculate this neurons output based on previous layers input
 
@@ -93,12 +93,12 @@ class PolyLeastSquares:
             return self.get_prev(prev)
         if self.c_non_matrix is None:
             return -1
-        x1,x2 = self.get_prev(prev)
+        x1, x2 = self.get_prev(prev)
 
-        return self.c_non_matrix[0] + self.c_non_matrix[1]*x1 + self.c_non_matrix[2]*x2 + self.c_non_matrix[3]*(x1**2) +\
-               self.c_non_matrix[4]*(x2**2) + self.c_non_matrix[5]*x1*x2
+        return [self.c_non_matrix[0] + self.c_non_matrix[1]*x1 + self.c_non_matrix[2]*x2 + self.c_non_matrix[3]*(x1**2) +\
+               self.c_non_matrix[4]*(x2**2) + self.c_non_matrix[5]*x1*x2 for x1,x2 in zip(x1,x2)]
 
-    def calc_quadratic_matrix(self, prev: GMDHLayer) -> float:
+    def calc_quadratic_matrix(self, prev: np.ndarray | GMDHLayer) -> np.ndarray:
         """
         calculate this neurons output based on previous layers input
 
@@ -119,7 +119,8 @@ class PolyLeastSquares:
         Fetches previous layers neurons(x1 and x2) outputs
 
         :param prev: previous layer
-        :return:
+        :param matrix: if True uses matrices for calculating previous layers output
+        :return: results of the neurons that are to be combined
         """
         if self.first:
             if self.through:
@@ -154,9 +155,14 @@ class PolyLeastSquares:
         #c = np.array([prev[self.x1],prev[self.x2]])
         A = np.array([input_x1 * 0 + 1, input_x1, input_x2, input_x1 ** 2, input_x2 ** 2, input_x1 * input_x2]).T
 
+        # euclidean 2-norm based residual
         coeff, r, rank, s = np.linalg.lstsq(A, y)
         self.c_non_matrix = coeff
         self.coefficients = self.to_lin_alg(coeff)
+
+        # calculating fitness
+        for x1,x2 in zip(input_x1,input_x2):
+            self.calc_quadratic()
 
         return r
 

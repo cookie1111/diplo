@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from utils import PolyLeastSquares
 from time import process_time_ns
 
-TEST = 2
+TEST = 1
 
 class MEEMDGMDH:
 
@@ -73,22 +73,17 @@ if __name__ == '__main__':
     if TEST == 1:
         # maybe good for parallel proccessing atm its useless doe
         start = process_time_ns()
-        matrix = np.lib.stride_tricks.sliding_window_view(s,window_shape=7)
-        p.calc_quadratic_matrix(matrix)
-        matrix = process_time_ns() - start
-        print(f"Speed quad matrix: {matrix}")
-
+        matrix = np.lib.stride_tricks.sliding_window_view(s[0:1000],window_shape=7)
+        c = p.calc_quadratic_matrix(matrix)
+        m = process_time_ns() - start
+        print(f"Speed quad matrix: {m}")
         ctr = 0
         start = process_time_ns()
-        for win in s.rolling(window=7,min_periods=7):
-            if ctr < 7:
-                ctr += 1
-                continue
-            d = p.calc_quadratic(list(win))
+        d = p.calc_quadratic(matrix)
         no_matrix = process_time_ns() - start
         print(f"Speed quad: {no_matrix}")
-        print(f"matrix - no_matrix = {matrix-no_matrix}")
-        #print(f"res: {c}, {d}")
+        print(f"matrix - no_matrix = {m-no_matrix}")
+        print(f"res: {c.shape}, {len(d)}")
     if TEST == 2:
         matrix = np.lib.stride_tricks.sliding_window_view(s, window_shape=8)
         print(matrix[:, :7].shape, matrix[:, -1:].shape)
