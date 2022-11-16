@@ -112,7 +112,12 @@ class PolyLeastSquares:
         x1, x2 = self.get_prev(prev, matrix=True)
 
         c = np.array([x1, x2])
-        return self.coefficients[0] + np.dot(self.coefficients[1], c) + np.dot(c.T, np.dot(self.coefficients[2], c))
+        # Z = N.diag(X.dot(Y)) -> Z = (X * Y.T).sum(-1)
+        uno = np.matmul(self.coefficients[2], c)
+        dos = (uno.T * c.T).sum(-1)
+        tres = np.dot(c.T, self.coefficients[1])
+        print(tres.shape)
+        return self.coefficients[0] + tres + dos
 
     def get_prev(self, prev: np.ndarray | GMDHLayer, matrix: bool = False) -> tuple[list[float], list[float]]:
         """
