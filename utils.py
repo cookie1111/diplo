@@ -25,6 +25,26 @@ def least_squares_error(z: np.ndarray, y: np.ndarray) -> float:
     return np.sum(np.square(y-z))
 
 
+def mean_square_error(z: np.ndarray, y: np.ndarray) -> float:
+    """
+    Mean square error calculated:
+    err = sum((y-z)^2)/len(y)
+
+    :param z: calculated predictions
+    :param y: ground truth
+    :return: mean square error
+    """
+    if (z is None) or (y is None):
+        print("One of the inputs is None")
+        return -1
+
+    if len(z) != len(y):
+        print(f"{len(z)} is not the same as {len(y)}")
+        return -1
+
+    return np.sum(np.square(y-z))/len(y)
+
+
 class GMDH:
     def __init__(self, inputs, y, max_neurons_per_layer=128, err_fn=least_squares_error, err_leeway=1, split_train_select=0.75):
         self.layers = []
@@ -45,7 +65,7 @@ class GMDH:
         while True:
             print(f"Training layer {len(self.layers)}")
             self.layers.append(GMDHLayer(inputs=self.layers[-1]))
-            cur_loss = self.layers[-1].train_layer(prev=self.inputs, y=self.y, fitness_fn=self.err_fn,
+            cur_loss = self.layers[-1].train_layer(prev=self.layers[-2], y=self.y, fitness_fn=self.err_fn,
                                                    split=self.split_train_select)
             if min_loss < cur_loss:
                 if loss_cnt == self.err_leeway:
@@ -99,7 +119,7 @@ class GMDHLayer:
         return len(self.neurons)
 
     def __getitem__(self, i):
-        return self.neurons[i]
+        return self.neurons[i][2]
 
     def train_layer(self, prev: Union[np.ndarray , "GMDHLayer"], y: np.ndarray, fitness_fn: Callable = least_squares_error,
                     split: float = 0.5) -> int:
@@ -154,6 +174,7 @@ class GMDHLayer:
         self.neurons = self.neurons[0]
 
 # TODO: at a later date add the option of storing or not storing previous layers outputs
+# TODO: need to store previous values
 class PolyLeastSquares:
 
     def __init__(self, input_indexes: list[int] | int, coefficients: list[float] = None, first: bool = False,

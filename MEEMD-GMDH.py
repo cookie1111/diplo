@@ -3,7 +3,7 @@ from emd import sift
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from utils import PolyLeastSquares, GMDH
+from utils import PolyLeastSquares, GMDH, mean_square_error
 from time import process_time_ns
 
 TEST = 3
@@ -89,6 +89,6 @@ if __name__ == '__main__':
         print(matrix[:, :7].shape, matrix[:, -1].shape)
         #p.regression_of_function(matrix[:, :7], matrix[:, -1:])
     if TEST == 3:
-        matrix = np.lib.stride_tricks.sliding_window_view(s,window_shape=7)
-        gmdh = GMDH(matrix[:, :7], matrix[:, -1])
+        matrix = np.lib.stride_tricks.sliding_window_view(s, window_shape=24)
+        gmdh = GMDH(matrix[:, :-1], matrix[:, -1],err_fn=mean_square_error)
         gmdh.train()
