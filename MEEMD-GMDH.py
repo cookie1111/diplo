@@ -92,3 +92,4 @@ if __name__ == '__main__':
         matrix = np.lib.stride_tricks.sliding_window_view(s, window_shape=24)
         gmdh = GMDH(matrix[:, :-1], matrix[:, -1],err_fn=mean_square_error)
         gmdh.train()
+        print(gmdh.test(matrix[0,:-1]), matrix[0,-1])

@@ -16,12 +16,10 @@ def least_squares_error(z: np.ndarray, y: np.ndarray) -> float:
     """
     if (z is None) or (y is None):
         print("One of the inputs is None")
-        raise "yeah nah buddy0"
         return -1
 
     if len(z) != len(y):
         print(f"{len(z)} is not the same as {len(y)}")
-        raise "yeah nah buddy0"
         return -1
 
     return np.sum(np.square(y - z))
@@ -90,8 +88,13 @@ class GMDH:
         self.can_evaluate = True
         print("Model has finished training")
 
-    def test(self):
-        pass
+    def test(self, inputs):
+        print(self.layers)
+        for layer in self.layers:
+            inputs = layer.forward(inputs)
+
+        return inputs
+
 
 
 class GMDHLayer:
@@ -104,7 +107,7 @@ class GMDHLayer:
         :param inputs: previous layer nodes or original input, where previous layer is either GMDHLayer object or
         collection of input variables in a np.ndarray
         :param threshold: a threshold to get rid of neurons that are not good enough, so we don't waste our time with
-        comparing and space for storing, if not set its set to median of previous layer
+        comparing and space for storing, if not set it's set to median of previous layer
         :param first_layer: check if its first layer since that would mean we don't get a previous layer but numpy array
         :param parallel: do we want to parallelize the workload
         :param workers: number of workers to use in parallelization
@@ -188,11 +191,17 @@ class GMDHLayer:
             return self.neurons[0][0]
 
     def reduce_to_best_neuron(self):
-        self.neurons = self.neurons[0]
+        self.neurons = [self.neurons[0]]
+
+    def forward(self, inputs):
+        print(self.neurons)
+        res = []
+        for n in self.neurons:
+            res.append(n[1].forward_pass(inputs))
+        return res
 
 
-# TODO: at a later date add the option of storing or not storing previous layers outputs
-# TODO: need to store previous values
+
 class PolyLeastSquares:
 
     def __init__(self, prev, input_indexes: list[int] | int, coefficients: list[float] = None, first: bool = False,
@@ -248,8 +257,7 @@ class PolyLeastSquares:
             return -1
 
         return [self.c_non_matrix[0] + self.c_non_matrix[1] * x1 + self.c_non_matrix[2] * x2 + self.c_non_matrix[3] * (
-                x1 ** 2) + self.c_non_matrix[4] * (x2 ** 2) + self.c_non_matrix[5] * x1 * x2 for x1, x2 in zip(x1,
-                                                                                                               x2)]
+                x1 ** 2) + self.c_non_matrix[4] * (x2 ** 2) + self.c_non_matrix[5] * x1 * x2 for x1, x2 in zip(x1, x2)]
 
     def calc_quadratic_matrix(self) -> np.ndarray:
         """
@@ -389,3 +397,53 @@ class PolyLeastSquares:
 
         selection_res = self.get_error(test_x1, test_x2, test_y, fitness_fn, tip=False)
         return train_res, selection_res
+
+    def calc_quadratic_forward(self, x1, x2):
+        """
+        calculate this neurons output based on previous layers input
+
+        :param x1: results of first input from previous layer
+        :param x2: results of second input from previous layer can be None if it's a pass through neuron
+        :return: result of the quadratic function
+        """
+
+        if self.through:
+            return x1
+        if self.c_non_matrix is None:
+            return -1
+
+        return [self.c_non_matrix[0] + self.c_non_matrix[1] * x1 + self.c_non_matrix[2] * x2 + self.c_non_matrix[3] * (
+                x1 ** 2) + self.c_non_matrix[4] * (x2 ** 2) + self.c_non_matrix[5] * x1 * x2 for x1, x2 in zip(x1, x2)]
+
+    def calc_quadratic_matrix_forward(self, x1, x2) -> np.ndarray:
+        """
+        calculate this neurons output based on previous layers input
+
+        :param x1: results of first input from previous layer
+        :param x2: results of second input from previous layer can be None if it's a pass through neuron
+        :return: result of the quadratic function
+        """
+        if self.through:
+            return x1
+        if self.coefficients is None:
+            return -1
+
+        c = np.array([x1, x2])
+        uno = np.matmul(self.coefficients[2], c)
+        dos = (uno.T * c.T).sum(-1)
+        tres = np.dot(c.T, self.coefficients[1])
+        # # print(tres.shape)
+        return self.coefficients[0] + tres + dos
+
+    def forward_pass(self, prev_layer_res):
+        if type(prev_layer_res) is np.ndarray:
+            if len(prev_layer_res.shape) == 1:
+                x1 = prev_layer_res[self.x1]
+                x2 = prev_layer_res[self.x2] if not self.through else None
+            else:
+                x1 = prev_layer_res[:, self.x1]
+                x2 = prev_layer_res[:, self.x2] if not self.through else None
+        else:
+            x1 = prev_layer_res[self.x1]
+            x2 = prev_layer_res[self.x2] if not self.through else None
+        return self.calc_quadratic_matrix_forward(x1, x2)
