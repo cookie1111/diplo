@@ -3,10 +3,11 @@ from emd import sift
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from utils import PolyLeastSquares, GMDH, mean_square_error
+from utils import PolyLeastSquares, GMDH, mean_square_error, DataLoader
 from time import process_time_ns
+from math import floor
 
-TEST = 3
+TEST = 4
 
 class MEEMDGMDH:
 
@@ -22,7 +23,7 @@ class MEEMDGMDH:
         res = self.timeseries - np.sum(imfs, axis=-1)
         return imfs, res
 
-    def create_ensamble_imfs(self, procs = 1, noise_amp = 0.05):
+    def create_ensamble_imfs(self, procs=1, noise_amp=0.05):
         if procs > 1:
             pass
         else:
@@ -51,15 +52,20 @@ class MEEMDGMDH:
         res_median = [nup]
         return imfs_medians, res_median
 
-    def gmdh(self, train_x, train_y, select_x, select_y, test_x, test_y, fitness_fn, polynomial, fitness_thresh):
-        layers = []
-        while True:
-
-
-
-            if True:
-                pass
+    def gmdh(self, train_x, train_y, select_x, select_y, fitness_fn, polynomial, fitness_thresh):
+        pass
         #return indexs, coefficients
+
+    def train(self, split = 0.5,):
+        imfs, res = self.create_ensamble_imfs()
+        medians_imfs, median_res = self.create_median(imfs,res)
+        for imf in medians_imfs:
+            dl = DataLoader(medians_imfs[imf])
+
+
+    def test(self):
+        pass
+
 
 if __name__ == '__main__':
     df = pd.read_csv("snp500.csv")
@@ -90,6 +96,10 @@ if __name__ == '__main__':
         #p.regression_of_function(matrix[:, :7], matrix[:, -1:])
     if TEST == 3:
         matrix = np.lib.stride_tricks.sliding_window_view(s, window_shape=24)
-        gmdh = GMDH(matrix[:, :-1], matrix[:, -1],err_fn=mean_square_error)
+        gmdh = GMDH(matrix[:, :-1], matrix[:, -1], err_fn=mean_square_error)
         gmdh.train()
-        print(gmdh.test(matrix[0,:-1]), matrix[0,-1])
+        print(gmdh.test(matrix[0, :-1]), matrix[0, -1])
+    if TEST == 4:
+        dl = DataLoader(s.iloc[:100])
+        print(dl.window_split_x_y())
+        print(dl.window_split_train_select_val_x_y())
