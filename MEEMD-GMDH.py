@@ -67,7 +67,7 @@ if __name__ == '__main__':
     #imfs, res = m.create_ensamble_imfs()
     #imfs, res = m.create_median(imfs,res)
     #print(len(imfs),imfs[0].shape)
-    p = PolyLeastSquares((0,1),[1,5,4,3,2,7],True)
+    p = PolyLeastSquares(None,(0,1),[1,5,4,3,2,7],True)
     s = df['Close']
     ctr = 0
     if TEST == 1:

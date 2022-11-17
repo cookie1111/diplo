@@ -16,13 +16,15 @@ def least_squares_error(z: np.ndarray, y: np.ndarray) -> float:
     """
     if (z is None) or (y is None):
         print("One of the inputs is None")
+        raise "yeah nah buddy0"
         return -1
 
     if len(z) != len(y):
         print(f"{len(z)} is not the same as {len(y)}")
+        raise "yeah nah buddy0"
         return -1
 
-    return np.sum(np.square(y-z))
+    return np.sum(np.square(y - z))
 
 
 def mean_square_error(z: np.ndarray, y: np.ndarray) -> float:
@@ -36,17 +38,20 @@ def mean_square_error(z: np.ndarray, y: np.ndarray) -> float:
     """
     if (z is None) or (y is None):
         print("One of the inputs is None")
+        raise "yeah nah buddy0"
         return -1
 
     if len(z) != len(y):
         print(f"{len(z)} is not the same as {len(y)}")
+        raise "yeah nah buddy0"
         return -1
 
-    return np.sum(np.square(y-z))/len(y)
+    return np.sum(np.square(y - z)) / len(y)
 
 
 class GMDH:
-    def __init__(self, inputs, y, max_neurons_per_layer=128, err_fn=least_squares_error, err_leeway=1, split_train_select=0.75):
+    def __init__(self, inputs, y, max_neurons_per_layer=128, err_fn=least_squares_error, err_leeway=1,
+                 split_train_select=0.75):
         self.layers = []
         self.inputs = inputs
         self.y = y
@@ -64,10 +69,10 @@ class GMDH:
                                                split=self.split_train_select)
         while True:
             print(f"Training layer {len(self.layers)}")
-            self.layers.append(GMDHLayer(inputs=self.layers[-1]))
+            k = self.layers.append(GMDHLayer(inputs=self.layers[-1], first_layer=False))
             cur_loss = self.layers[-1].train_layer(prev=self.layers[-2], y=self.y, fitness_fn=self.err_fn,
                                                    split=self.split_train_select)
-            if min_loss < cur_loss:
+            if min_loss <= cur_loss:
                 if loss_cnt == self.err_leeway:
                     print(f"Layer {len(self.layers)} has triggered the train stop condition")
                     break
@@ -91,13 +96,13 @@ class GMDH:
 
 class GMDHLayer:
 
-    def __init__(self, inputs: Union[np.ndarray , "GMDHLayer"], threshold: float = None, first_layer: bool = False,
+    def __init__(self, inputs: Union[np.ndarray, "GMDHLayer"], threshold: float = None, first_layer: bool = False,
                  parallel: bool = False, workers: int = 1, max_neurons: int = 128) -> None:
         """
         initializes the layer
 
         :param inputs: previous layer nodes or original input, where previous layer is either GMDHLayer object or
-        collection of input variables in a np.array
+        collection of input variables in a np.ndarray
         :param threshold: a threshold to get rid of neurons that are not good enough, so we don't waste our time with
         comparing and space for storing, if not set its set to median of previous layer
         :param first_layer: check if its first layer since that would mean we don't get a previous layer but numpy array
@@ -105,11 +110,13 @@ class GMDHLayer:
         :param workers: number of workers to use in parallelization
         :param max_neurons: max amount of neurons in layer
         """
+        # self.index = index
+        # print(f"GMDHLayer: {inputs}")
         self.first_layer = first_layer
         self.max_neurons = max_neurons
-        self.neurons = [PolyLeastSquares(inputs, first=first_layer) for inputs in (comb(range(len(inputs)), 2) if
-                                                                                   not first_layer else comb(
-            range(inputs.shape[1]), 2))]
+        self.neurons = [PolyLeastSquares(inputs, inp, first=self.first_layer) for inp in
+                        (comb(range(len(inputs)), 2) if not self.first_layer else comb(range(inputs.shape[1]), 2))]
+        # print("oop")
         self.parallel = parallel
         self.workers = workers
         self.threshold = threshold
@@ -119,9 +126,13 @@ class GMDHLayer:
         return len(self.neurons)
 
     def __getitem__(self, i):
-        return self.neurons[i][2]
+        # print(i)
+        # print(f"neurons: {self.neurons}")
+        # print(f"you want dis? {self.neurons[i]}")
+        return self.neurons[i][1]
 
-    def train_layer(self, prev: Union[np.ndarray , "GMDHLayer"], y: np.ndarray, fitness_fn: Callable = least_squares_error,
+    def train_layer(self, prev: Union[np.ndarray, "GMDHLayer"], y: np.ndarray,
+                    fitness_fn: Callable = least_squares_error,
                     split: float = 0.5) -> int:
         """
         Trains layer and selects, which neurons to keep from previous layers, which to replace and which new neurons
@@ -144,40 +155,47 @@ class GMDHLayer:
             if self.first_layer:
                 # create through neurons of previous layer
                 for neuron in range(self.prev_layer.shape[1]):
-                    neuro = PolyLeastSquares(neuron, through=True, first=True)
+                    neuro = PolyLeastSquares(self.prev_layer, neuron, through=True, first=True)
+                    # print(split)
                     err = neuro.regress_and_test(prev, y, fitness_fn, split)
-                    accepted_comp.append((err[1], neuron))
+                    accepted_comp.append((err[1], neuro))
                 accepted_comp.sort()
-                threshold = accepted_comp[floor(len(accepted_comp)/2)][1]
+                # print(f"first: {neuro}")
+                threshold = accepted_comp[floor(len(accepted_comp) / 2)][0]
             else:
                 for neuron in range(len(self.prev_layer)):
-                    neuro = PolyLeastSquares(neuron, through=True, first=True)
+                    neuro = PolyLeastSquares(self.prev_layer, neuron, through=True, first=False)
                     err = neuro.regress_and_test(prev, y, fitness_fn, split)
-                    accepted_comp.append((err[1], neuron))
+                    # print(f"current neuron:{neuro}")
+                    accepted_comp.append((err[1], neuro))
                 accepted_comp.sort()
-                threshold = accepted_comp[floor(len(accepted_comp) / 2)][1]
+                threshold = accepted_comp[floor(len(accepted_comp) / 2)][0]
 
             # test new neurons and add them to queue if condition is satisfied
             while len(self.neurons) > 0:
                 neuron = self.neurons.pop()
+                # print(f"uno neuron{neuron}")
                 error = neuron.regress_and_test(prev, y, fitness_fn, split)
+                # print(threshold, error)
                 if error[1] < threshold:
+                    # print(f"YOU ARE HIRED")
                     accepted_comp.append((error[1], neuron))
-            print(accepted_comp[0],accepted_comp[1])
+            # print(f"Accepted trained:{accepted_comp[0]},{accepted_comp[1]}")
             accepted_comp.sort()
             self.neurons = accepted_comp
-            print(self.neurons)
+            # print(self.neurons)
 
             return self.neurons[0][0]
 
     def reduce_to_best_neuron(self):
         self.neurons = self.neurons[0]
 
+
 # TODO: at a later date add the option of storing or not storing previous layers outputs
 # TODO: need to store previous values
 class PolyLeastSquares:
 
-    def __init__(self, input_indexes: list[int] | int, coefficients: list[float] = None, first: bool = False,
+    def __init__(self, prev, input_indexes: list[int] | int, coefficients: list[float] = None, first: bool = False,
                  through: bool = False) -> None:
         """
         Creates a polynomial least squares neuron
@@ -189,6 +207,7 @@ class PolyLeastSquares:
         :param through: True if this is just a normal through gate
         """
         self.through = through
+        self.prev = prev
         if through:
             self.x1 = input_indexes
             self.x2 = None
@@ -196,7 +215,9 @@ class PolyLeastSquares:
             self.c_non_matrix = coefficients
             self.coefficients = None if not coefficients else self.to_lin_alg(coefficients)
             self.x1, self.x2 = input_indexes
+        # print(f"New wave{first}")
         self.first = first
+        self.results = [None, None]
 
     @staticmethod
     def to_lin_alg(c):
@@ -208,7 +229,7 @@ class PolyLeastSquares:
         """
         return c[0], np.array([c[1], c[2]]), np.array([[c[3], c[5] / 2], [c[5] / 2, c[4]]])
 
-    def calc_quadratic(self, x1: np.ndarray, x2: np.ndarray | None = None) -> list[float]:
+    def calc_quadratic(self) -> list[float]:
         """
         calculate this neurons output based on previous layers input
 
@@ -216,16 +237,21 @@ class PolyLeastSquares:
         :param x2: results of second input from previous layer can be None if it's a pass through neuron
         :return: result of the quadratic function
         """
+        x1 = self.get_prev(matrix=False)
+        if type(x1) is tuple:
+            x1 = x1[0]
+            x2 = x1[1]
+
         if self.through:
             return x1
         if self.c_non_matrix is None:
             return -1
 
         return [self.c_non_matrix[0] + self.c_non_matrix[1] * x1 + self.c_non_matrix[2] * x2 + self.c_non_matrix[3] * (
-                    x1 ** 2) + self.c_non_matrix[4] * (x2 ** 2) + self.c_non_matrix[5] * x1 * x2 for x1, x2 in zip(x1,
-                                                                                                                   x2)]
+                x1 ** 2) + self.c_non_matrix[4] * (x2 ** 2) + self.c_non_matrix[5] * x1 * x2 for x1, x2 in zip(x1,
+                                                                                                               x2)]
 
-    def calc_quadratic_matrix(self, x1: np.ndarray, x2: np.ndarray | None = None) -> np.ndarray:
+    def calc_quadratic_matrix(self) -> np.ndarray:
         """
         calculate this neurons output based on previous layers input
 
@@ -233,6 +259,11 @@ class PolyLeastSquares:
         :param x2: results of second input from previous layer can be None if it's a pass through neuron
         :return: result of the quadratic function
         """
+        x1 = self.get_prev(matrix=True)
+        if type(x1) is tuple:
+            x1 = x1[0]
+            x2 = x1[1]
+
         if self.through:
             return x1
         if self.coefficients is None:
@@ -243,11 +274,11 @@ class PolyLeastSquares:
         uno = np.matmul(self.coefficients[2], c)
         dos = (uno.T * c.T).sum(-1)
         tres = np.dot(c.T, self.coefficients[1])
-        #print(tres.shape)
+        # # print(tres.shape)
         return self.coefficients[0] + tres + dos
 
-    def get_prev(self, prev: np.ndarray | GMDHLayer, matrix: bool = False) -> tuple[list[float], list[float]]\
-                                                                              | list[float]:
+    def get_prev(self, matrix: bool = False) -> tuple[list[float], list[float]] \
+                                                | list[float]:
         """
         Fetches previous layers neurons(x1 and x2) outputs
 
@@ -257,24 +288,24 @@ class PolyLeastSquares:
         """
         if self.first:
             if self.through:
-                return prev[:, self.x1]
-            x1 = prev[:, self.x1]
-            x2 = prev[:, self.x2]
+                return self.prev[:, self.x1]
+            x1 = self.prev[:, self.x1]
+            x2 = self.prev[:, self.x2]
         else:
             if matrix:
                 if self.through:
-                    return prev[self.x1].calc_quadratic_matrix()
-                x1 = prev[self.x1].calc_quadratic_matrix()
-                x2 = prev[self.x2].calc_quadratic_matrix()
+                    return self.prev[self.x1].calc_quadratic_matrix()
+                x1 = self.prev[self.x1].calc_quadratic_matrix()
+                x2 = self.prev[self.x2].calc_quadratic_matrix()
             else:
                 if self.through:
-                    return prev[self.x1].calc_quadratic()
-                x1 = prev[self.x1].calc_quadratic()
-                x2 = prev[self.x2].calc_quadratic()
+                    return self.prev[self.x1].calc_quadratic()
+                x1 = self.prev[self.x1].calc_quadratic()
+                x2 = self.prev[self.x2].calc_quadratic()
         return x1, x2
 
     # storage of previous input vs calculating it every time...
-    def regression_of_function(self, input_x1: np.ndarray , input_x2: np.ndarray | None, y: np.ndarray,
+    def regression_of_function(self, input_x1: np.ndarray, input_x2: np.ndarray | None, y: np.ndarray,
                                fitness_fn: Callable = least_squares_error) -> float:
         """
         Runs least squares regression to solve for A,B,C,D,E,F in:
@@ -296,13 +327,13 @@ class PolyLeastSquares:
         self.coefficients = self.to_lin_alg(coeff)
 
         # calculating fitness
-
-        return self.get_error(input_x1, input_x2, y, fitness_fn)
+        return self.get_error(input_x1, input_x2, y, fitness_fn, tip=True)
 
     def get_error(self, input_x1: np.ndarray, input_x2: np.ndarray | None, y: np.ndarray,
-                  fitness_fn: Callable = least_squares_error) -> float:
+                  fitness_fn: Callable = least_squares_error, tip: bool = True) -> float:
         """
         Calculates error between the prediction and ground truth based on passed function
+        :param tip: wether this is training or testing error
         :param input_x1: previous layers first neurons output
         :param input_x2:  previous layers second neurons output or None if it's a pass through layer
         :param y: ground truth for predicted variable
@@ -310,7 +341,20 @@ class PolyLeastSquares:
         and second argument the ground truth
         :return: calculated error between prediction and ground truth
         """
-        res = self.calc_quadratic_matrix(input_x1, input_x2)
+        if tip:
+            if self.results[0] is None:
+                self.results[0] = self.calc_quadratic_matrix()
+                if len(self.results[0]) > len(input_x1):
+                    self.results[0] = self.results[0][:len(input_x1)]
+            res = self.results[0]
+        else:
+            if self.results[1] is None:
+                self.results[1] = self.calc_quadratic_matrix()
+                if len(self.results[1]) > len(input_x1):
+                    self.results[1] = self.results[1][-len(input_x1):]
+            res = self.results[1]
+        # res = self.calc_quadratic_matrix(input_x1, input_x2)
+        # print(len(res))
         return fitness_fn(res, y)
 
     def regress_and_test(self, prev: GMDHLayer | np.ndarray, y: np.ndarray, fitness_fn: Callable = least_squares_error,
@@ -325,7 +369,7 @@ class PolyLeastSquares:
         :return: error on train set, error on selection set(selection set is the one that matters)
         """
         if not self.through:
-            input_x1, input_x2 = self.get_prev(prev)
+            input_x1, input_x2 = self.get_prev()
             train_x1 = input_x1[:floor(len(input_x1) * split)]
             train_x2 = input_x2[:floor(len(input_x2) * split)]
             train_y = y[:floor(len(y) * split)]
@@ -334,13 +378,14 @@ class PolyLeastSquares:
             test_y = y[floor(len(y) * split):]
             train_res = self.regression_of_function(train_x1, train_x2, train_y, fitness_fn=fitness_fn)
         else:
-            input_x1 = self.get_prev(prev)
+            input_x1 = self.get_prev()
             train_x1 = input_x1[:floor(len(input_x1) * split)]
             test_x1 = input_x1[floor(len(input_x1) * split):]
             test_x2 = None
             train_y = y[:floor(len(y) * split)]
             test_y = y[floor(len(y) * split):]
-            train_res = self.get_error(train_x1, None, train_y, fitness_fn)
+            # print(len(train_x1), len(train_y))
+            train_res = self.get_error(train_x1, None, train_y, fitness_fn, tip=True)
 
-        selection_res = self.get_error(test_x1, test_x2, test_y, fitness_fn)
+        selection_res = self.get_error(test_x1, test_x2, test_y, fitness_fn, tip=False)
         return train_res, selection_res
