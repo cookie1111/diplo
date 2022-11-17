@@ -7,12 +7,14 @@ from utils import PolyLeastSquares, GMDH, mean_square_error, DataLoader
 from time import process_time_ns
 from math import floor
 
-TEST = 4
+TEST = 5
 
 class MEEMDGMDH:
 
     def __init__(self, ts):
         self.timeseries = ts
+        self.models = None
+        self.model_res = None
 
     def add_noise(self, noise_amp):
         return self.timeseries + np.random.normal(0, noise_amp, len(self.timeseries))
@@ -52,19 +54,40 @@ class MEEMDGMDH:
         res_median = [nup]
         return imfs_medians, res_median
 
-    def gmdh(self, train_x, train_y, select_x, select_y, fitness_fn, polynomial, fitness_thresh):
-        pass
+    def gmdh(self, train_x, train_y, fitness_fn, split):
+        model = GMDH(train_x,train_y,err_fn=fitness_fn, split_train_select=split)
+        model.train()
+        return model
         #return indexs, coefficients
 
-    def train(self, split = 0.5,):
+    def train(self, split: float = 0.5,) -> None:
+        """
+        Calculates the imfs for the ensambles and trains the corresponding models
+
+        :param split: ratio between train and selection set
+        :return: None
+        """
+        self.models_imfs = []
         imfs, res = self.create_ensamble_imfs()
         medians_imfs, median_res = self.create_median(imfs,res)
         for imf in medians_imfs:
-            dl = DataLoader(medians_imfs[imf])
+            print(len(medians_imfs[imf]))
+
+            print("place_holder")
+            dloader = DataLoader(medians_imfs[imf])
+            train_split, val_split = dloader.window_split_train_val_x_y(window_size=7)
+            self.models[imf] = self.gmdh(*train_split, mean_square_error, split)
+        dloader = DataLoader(res)
+        train_split, val_split = dloader.window_split_train_val_x_y(window_size=7)
+        self.model_res = self.gmdh(*train_split, mean_square_error, split)
 
 
-    def test(self):
-        pass
+    def test(self, inputs=None):
+        if inputs is None:
+            pass
+
+
+
 
 
 if __name__ == '__main__':
@@ -103,3 +126,6 @@ if __name__ == '__main__':
         dl = DataLoader(s.iloc[:100])
         print(dl.window_split_x_y())
         print(dl.window_split_train_select_val_x_y())
+    if TEST == 5:
+        end_model = MEEMDGMDH(s)
+        end_model.train()
