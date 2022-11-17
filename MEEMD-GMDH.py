@@ -71,10 +71,8 @@ class MEEMDGMDH:
         imfs, res = self.create_ensamble_imfs()
         medians_imfs, median_res = self.create_median(imfs,res)
         for imf in medians_imfs:
-            print(len(medians_imfs[imf]))
-
             print("place_holder")
-            dloader = DataLoader(medians_imfs[imf])
+            dloader = DataLoader(imf)
             train_split, val_split = dloader.window_split_train_val_x_y(window_size=7)
             self.models[imf] = self.gmdh(*train_split, mean_square_error, split)
         dloader = DataLoader(res)
