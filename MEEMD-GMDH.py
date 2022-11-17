@@ -55,6 +55,7 @@ class MEEMDGMDH:
         return imfs_medians, res_median
 
     def gmdh(self, train_x, train_y, fitness_fn, split):
+        print(train_x.shape, train_y.shape)
         model = GMDH(train_x,train_y,err_fn=fitness_fn, split_train_select=split)
         model.train()
         return model

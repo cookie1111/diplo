@@ -278,6 +278,7 @@ class PolyLeastSquares:
             return -1
 
         c = np.array([x1, x2])
+        print(c.shape)
         # Z = N.diag(X.dot(Y)) -> Z = (X * Y.T).sum(-1)
         uno = np.matmul(self.coefficients[2], c)
         dos = (uno.T * c.T).sum(-1)
@@ -392,7 +393,6 @@ class PolyLeastSquares:
             test_x2 = None
             train_y = y[:floor(len(y) * split)]
             test_y = y[floor(len(y) * split):]
-            # print(len(train_x1), len(train_y))
             train_res = self.get_error(train_x1, None, train_y, fitness_fn, tip=True)
 
         selection_res = self.get_error(test_x1, test_x2, test_y, fitness_fn, tip=False)
