@@ -6,6 +6,16 @@ from math import floor
 from random import sample
 
 
+class DimMismatch(Exception):
+
+    def __init__(self, shape, message=f"First dimension is not 2"):
+        super().__init__(message)
+        self.shape = shape
+
+    def __str__(self):
+        return f"The shape of the matrix is {self.shape}, first dimension is not 2"
+
+
 class ShapeMismatchException(Exception):
     def __init__(self, shape, message = "shape has more than 2 dimensions"):
         super().__init__(message)
@@ -67,7 +77,6 @@ def mean_square_error(z: np.ndarray, y: np.ndarray) -> float:
     return np.sum(np.square(y - z)) / len(y)
 
 
-# fixing
 class GMDH:
 
     def __init__(self, inputs: np.ndarray, y: np.ndarray, max_neurons_per_layer: int = 128,
@@ -100,14 +109,17 @@ class GMDH:
         """
         loss_cnt = 0
         print(f"Starting training")
+        cur_layer_res = self.inputs
         self.layers.append(GMDHLayer(self.inputs))
         min_loss = self.layers[-1].train_layer(prev=self.inputs, y=self.y, fitness_fn=self.err_fn,
                                                split=self.split_train_select)
+        cur_layer_res = self.layers[-1].forward(cur_layer_res)
         while True:
             print(f"Training layer {len(self.layers)}")
-            k = self.layers.append(GMDHLayer(inputs=self.layers[-1]))
-            cur_loss = self.layers[-1].train_layer(prev=self.layers[-2], y=self.y, fitness_fn=self.err_fn,
+            self.layers.append(GMDHLayer(inputs=cur_layer_res))
+            cur_loss = self.layers[-1].train_layer(prev=cur_layer_res, y=self.y, fitness_fn=self.err_fn,
                                                    split=self.split_train_select)
+            cur_layer_res = self.layers[-1].forward(cur_layer_res)
             if min_loss <= cur_loss:
                 if loss_cnt == self.err_leeway:
                     print(f"Layer {len(self.layers)} has triggered the train stop condition")
@@ -227,7 +239,7 @@ class GMDHLayer:
                 # print(threshold, error)
                 if error[1] < threshold:
                     # print(f"YOU ARE HIRED")
-                    accepted_comp.append((error[1], neuron))
+                    accepted_comp.append((error[1], neuron[-1]))
             # print(f"Accepted trained:{accepted_comp[0]},{accepted_comp[1]}")
             accepted_comp.sort()
             self.neurons = accepted_comp
@@ -254,6 +266,7 @@ class GMDHLayer:
         """
         #print(self.neurons)
         res = []
+        print(self.neurons)
         for n in self.neurons:
             res.append(n[1].forward_pass(inputs))
         return np.stack(res)
@@ -297,10 +310,21 @@ class PolyLeastSquares:
             self.x1 = input_indexes
             self.x2 = None
         else:
-            self.c_non_matrix = coefficients
             self.coefficients = None if not coefficients else self.to_lin_alg(coefficients)
             self.x1, self.x2 = input_indexes
         # print(f"New wave{first}")
+
+    def __str__(self) -> str:
+        """
+        Gvies short summary of the object
+
+        :return: summary of object
+        """
+        return f"""
+Neuron specification:
+    Indexes: x1={self.x1} x2={self.x2}
+    Coefficients: {self.coefficients}
+        """
 
     #fixed
     @staticmethod
@@ -335,8 +359,10 @@ class PolyLeastSquares:
         if x2 is not None and len(x2.shape) > 3:
             raise ShapeMismatchException(x2.shape)
         c = np.array([x1, x2])
-        print(c.shape)
-        # print(c.shape)
+        if c.shape[0] != 2:
+            raise DimMismatch(c.shape)
+
+        #print(c.shape,)
         # Z = N.diag(X.dot(Y)) -> Z = (X * Y.T).sum(-1)
         uno = np.matmul(self.coefficients[2], c)
         dos = (uno.T * c.T).sum(-1)
@@ -379,17 +405,16 @@ class PolyLeastSquares:
             raise ShapeMismatchException(input_x1.shape)
         if input_x2 is not None and len(input_x2.shape) > 3:
             raise ShapeMismatchException(input_x2.shape)
-        
+
         # c = np.array([prev[self.x1],prev[self.x2]])
         A = np.array([input_x1 * 0 + 1, input_x1, input_x2, input_x1 ** 2, input_x2 ** 2, input_x1 * input_x2]).T
 
         # euclidean 2-norm based residual
         coeff, r, rank, s = np.linalg.lstsq(A, y)
-        self.c_non_matrix = coeff
         self.coefficients = self.to_lin_alg(coeff)
 
         # calculating fitness
-        return self.get_error(input_x1, input_x2, y, fitness_fn, tip=True)
+        return self.get_error(input_x1, input_x2, y, fitness_fn)
 
     # fixed
     def get_error(self, input_x1: np.ndarray, input_x2: np.ndarray | None, y: np.ndarray,
@@ -436,7 +461,7 @@ class PolyLeastSquares:
         if split >= 1 or split <= 0:
             raise ValueError(f"split is {split} -> constraint 0 <= split <= 1 not satisfied")
 
-        print("still have it", prev.shape)
+        # print("still have it", prev.shape)
         if not self.through:
             input_x1, input_x2 = self.get_prev(prev)
             del prev
