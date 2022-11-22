@@ -6,6 +6,10 @@ from math import floor
 from random import sample
 
 
+# use scipy for value estimation
+from scipy.optimize import leastsq
+
+
 class DimMismatch(Exception):
 
     def __init__(self, shape, message=f"First dimension is not 2"):
@@ -114,12 +118,14 @@ class GMDH:
         min_loss = self.layers[-1].train_layer(prev=self.inputs, y=self.y, fitness_fn=self.err_fn,
                                                split=self.split_train_select)
         cur_layer_res = self.layers[-1].forward(cur_layer_res)
+        print(f"Layer 0 Trained: {len(self.layers[-1])}")
         while True:
             print(f"Training layer {len(self.layers)}")
             self.layers.append(GMDHLayer(inputs=cur_layer_res))
             cur_loss = self.layers[-1].train_layer(prev=cur_layer_res, y=self.y, fitness_fn=self.err_fn,
                                                    split=self.split_train_select)
             cur_layer_res = self.layers[-1].forward(cur_layer_res)
+            print(f"Layer {len(self.layers)-1} Trained: {len(self.layers[-1])}")
             if min_loss <= cur_loss:
                 if loss_cnt == self.err_leeway:
                     print(f"Layer {len(self.layers)} has triggered the train stop condition")
@@ -546,3 +552,54 @@ class DataLoader:
             train_y, select_y = train_y[:floor(len(train_y) * train_select_split), :], train_y[floor(len(train_y) * train_select_split):, :]
 
         return (train_x, train_y), (select_x, select_y), (val_x, val_y)
+
+
+def create_combs(X: np.ndarray):
+    
+    for i in range(X.shape[1]):
+        for j in range(i+1, X.shape[1]):
+            yield X[:, i], X[:, j]
+    return None
+
+
+def poly(x: np.ndarray, coeff: np.ndarray | list = [1, 1, 1, 1, 1]):
+    coeffs = coeff[0], np.array([coeff[1], coeff[2]]), np.array([[coeff[3], coeff[5] / 2], [coeff[5] / 2, coeff[4]]])
+    if x.shape[0] != 2:
+        raise DimMismatch(x.shape)
+    # print(x.shape,)
+    # Z = N.diag(X.dot(Y)) -> Z = (X * Y.T).sum(-1)
+    uno = np.matmul(coeffs[2], x)
+    dos = (uno.T * x.T).sum(-1)
+    tres = np.dot(x.T, coeffs[1])
+    # # print(tres.shape)
+    return coeffs[0] + tres + dos
+
+
+def radial_basis(x, coeffs):
+    return np.exp(-np.square(poly(x, coeffs)))
+
+
+def prep_func(ts_x: np.ndarray, ts_y: np.ndarray, transfer_func: Callable):
+    def func(coeffs):
+        return ts_y - transfer_func(ts_x, coeffs)
+    return func
+
+
+class MatrixGMDHLayer:
+
+    def __init__(self, transfer_functions: list = [], error_function: Callable = mean_square_error):
+        self.transfer_functions = transfer_functions
+        self.error_function = error_function
+        self.added_value = (0, 0)
+
+    def calc_poly_coeff(self, X: np.ndarray, y: np.ndarray):
+        """
+        Calculates and chooses the best
+
+        :param X: shape = (length of sample, number of input variables)
+        :param y: shape = (length of sample)
+        :return: coeff with the highest value
+        """
+        
+        res = leastsq(prep_func(X, y, radial_basis))
+        return res

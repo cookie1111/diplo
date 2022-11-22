@@ -7,7 +7,8 @@ from utils import PolyLeastSquares, GMDH, mean_square_error, DataLoader
 from time import process_time_ns
 from math import floor
 
-TEST = 3
+
+TEST = 6
 
 class MEEMDGMDH:
 
@@ -108,8 +109,8 @@ if __name__ == '__main__':
         print(matrix[:, :7].shape, matrix[:, -1].shape)
         #p.regression_of_function(matrix[:, :7], matrix[:, -1:])
     if TEST == 3:
-        matrix = np.lib.stride_tricks.sliding_window_view(s, window_shape=24)
-        gmdh = GMDH(matrix[:, :-1], matrix[:, -1], err_fn=mean_square_error)
+        matrix = np.lib.stride_tricks.sliding_window_view(s, window_shape=7)
+        gmdh = GMDH(matrix[:, :-1], matrix[:, -1], err_fn=mean_square_error, max_neurons_per_layer=128)
         gmdh.train()
         print(gmdh.test(matrix[0, :-1]), matrix[0, -1])
     if TEST == 4:
@@ -119,3 +120,10 @@ if __name__ == '__main__':
     if TEST == 5:
         end_model = MEEMDGMDH(s)
         end_model.train()
+
+    if TEST == 6:
+        si = np.sin(range(100))*10
+        ts = np.random.uniform(-1, 1, size=(100,))
+        plt.figure()
+        plt.plot(range(len(ts)), si + ts)
+        plt.show()
