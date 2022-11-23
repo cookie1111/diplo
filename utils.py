@@ -5,9 +5,8 @@ from typing import Callable, Union
 from math import floor
 from random import sample
 
-
 # use scipy for value estimation
-from scipy.optimize import leastsq
+from scipy.optimize import least_squares
 
 
 class DimMismatch(Exception):
@@ -21,7 +20,7 @@ class DimMismatch(Exception):
 
 
 class ShapeMismatchException(Exception):
-    def __init__(self, shape, message = "shape has more than 2 dimensions"):
+    def __init__(self, shape, message="shape has more than 2 dimensions"):
         super().__init__(message)
         self.message = message
         self.shape = shape
@@ -31,7 +30,7 @@ class ShapeMismatchException(Exception):
 
 
 class ModelNotTrained(Exception):
-    def __init__(self, message = "Models coefficients have yet to be computed"):
+    def __init__(self, message="Models coefficients have yet to be computed"):
         super().__init__(message)
         self.message = message
 
@@ -125,7 +124,7 @@ class GMDH:
             cur_loss = self.layers[-1].train_layer(prev=cur_layer_res, y=self.y, fitness_fn=self.err_fn,
                                                    split=self.split_train_select)
             cur_layer_res = self.layers[-1].forward(cur_layer_res)
-            print(f"Layer {len(self.layers)-1} Trained: {len(self.layers[-1])}")
+            print(f"Layer {len(self.layers) - 1} Trained: {len(self.layers[-1])}")
             if min_loss <= cur_loss:
                 if loss_cnt == self.err_leeway:
                     print(f"Layer {len(self.layers)} has triggered the train stop condition")
@@ -191,7 +190,7 @@ class GMDHLayer:
         self.workers = workers
         self.threshold = threshold
         self.frozen = False
-        #self.prev_layer = inputs
+        # self.prev_layer = inputs
 
     # fixed
     def __len__(self):
@@ -270,7 +269,7 @@ class GMDHLayer:
         :param inputs: numpy array of previous layers results or the initial input if this is the first layer
         :return: results of this layer stacked in a numpy array
         """
-        #print(self.neurons)
+        # print(self.neurons)
         res = []
         print(self.neurons)
         for n in self.neurons:
@@ -311,7 +310,7 @@ class PolyLeastSquares:
         :param through: True if this is just a normal through gate
         """
         self.through = through
-        #self.prev_results = prev_results
+        # self.prev_results = prev_results
         if through:
             self.x1 = input_indexes
             self.x2 = None
@@ -332,7 +331,7 @@ Neuron specification:
     Coefficients: {self.coefficients}
         """
 
-    #fixed
+    # fixed
     @staticmethod
     def to_lin_alg(c):
         """
@@ -368,7 +367,7 @@ Neuron specification:
         if c.shape[0] != 2:
             raise DimMismatch(c.shape)
 
-        #print(c.shape,)
+        # print(c.shape,)
         # Z = N.diag(X.dot(Y)) -> Z = (X * Y.T).sum(-1)
         uno = np.matmul(self.coefficients[2], c)
         dos = (uno.T * c.T).sum(-1)
@@ -513,13 +512,13 @@ Neuron specification:
 
 
 class DataLoader:
-    
+
     def __init__(self, data: np.ndarray) -> None:
         self.data = data
-        
+
     def window(self, window_size: int = 30) -> np.ndarray:
         return np.lib.stride_tricks.sliding_window_view(self.data, window_shape=window_size)
-    
+
     def window_split_x_y(self, window_size: int = 30, y_len: int = 1):
         x = self.window(window_size=window_size)
         return x[:, :-y_len], x[:, -y_len:]
@@ -544,25 +543,26 @@ class DataLoader:
         else:
             train_y, val_y = y[:floor(len(y) * train_val_split), :], y[floor(len(y) * train_val_split):, :]
 
-        train_x, select_x = train_x[:floor(len(train_x) * train_select_split), :],\
+        train_x, select_x = train_x[:floor(len(train_x) * train_select_split), :], \
                             train_x[floor(len(train_x) * train_select_split):, :]
         if len(train_y.shape) == 1:
-            train_y, select_y = train_y[:floor(len(train_y) * train_select_split)], train_y[floor(len(train_y) * train_select_split):]
+            train_y, select_y = train_y[:floor(len(train_y) * train_select_split)], train_y[floor(
+                len(train_y) * train_select_split):]
         else:
-            train_y, select_y = train_y[:floor(len(train_y) * train_select_split), :], train_y[floor(len(train_y) * train_select_split):, :]
+            train_y, select_y = train_y[:floor(len(train_y) * train_select_split), :], train_y[floor(
+                len(train_y) * train_select_split):, :]
 
         return (train_x, train_y), (select_x, select_y), (val_x, val_y)
 
 
 def create_combs(X: np.ndarray):
-    
     for i in range(X.shape[1]):
-        for j in range(i+1, X.shape[1]):
+        for j in range(i + 1, X.shape[1]):
             yield X[:, i], X[:, j]
     return None
 
 
-def poly(x: np.ndarray, coeff: np.ndarray | list = [1, 1, 1, 1, 1]):
+def poly(x: np.ndarray, coeff: np.ndarray | list = [1, 1, 1, 1, 1, 1]):
     coeffs = coeff[0], np.array([coeff[1], coeff[2]]), np.array([[coeff[3], coeff[5] / 2], [coeff[5] / 2, coeff[4]]])
     if x.shape[0] != 2:
         raise DimMismatch(x.shape)
@@ -575,31 +575,73 @@ def poly(x: np.ndarray, coeff: np.ndarray | list = [1, 1, 1, 1, 1]):
     return coeffs[0] + tres + dos
 
 
-def radial_basis(x, coeffs):
+def radial_basis(coeffs, x):
     return np.exp(-np.square(poly(x, coeffs)))
 
 
 def prep_func(ts_x: np.ndarray, ts_y: np.ndarray, transfer_func: Callable):
     def func(coeffs):
-        return ts_y - transfer_func(ts_x, coeffs)
+        return ts_y - transfer_func(coeffs, ts_x)
+
     return func
 
 
 class MatrixGMDHLayer:
 
-    def __init__(self, transfer_functions: list = [], error_function: Callable = mean_square_error):
+    def __init__(self, transfer_functions: list = [], error_function: Callable = mean_square_error,
+                 train_select_split: float = 0.75):
         self.transfer_functions = transfer_functions
         self.error_function = error_function
         self.added_value = (0, 0)
+        self.ts_split = train_select_split
+        self.indexes = (-1, -1)
+        self.coeffs = None
 
-    def calc_poly_coeff(self, X: np.ndarray, y: np.ndarray):
+    def calc_poly_coeff(self, X: np.ndarray, y: np.ndarray, transfer_func: Callable):
         """
         Calculates and chooses the best
 
-        :param X: shape = (length of sample, number of input variables)
+        :param X: shape = (2 combined input variables, length of sample)
         :param y: shape = (length of sample)
         :return: coeff with the highest value
         """
-        
-        res = leastsq(prep_func(X, y, radial_basis))
-        return res
+
+        res = least_squares(lambda coeffs, ts_x, ts_y, ts_f: ts_y - ts_f(coeffs, ts_x), np.array([3, 1, 2, 1, 1, 1]),
+                            args=(X, y, transfer_func))
+        return res.x, res.cost
+
+    @staticmethod
+    def evaluate_poly(coeffs, X: np.ndarray, y: np.ndarray, transfer_fn: Callable):
+        return mean_square_error(transfer_fn(coeffs, X), y)
+
+    def pick_best_combination_fn(self, X: np.ndarray, y: np.ndarray, transfer_fn: Callable):
+        """
+        Picks only the best performing combination and returns it
+
+        :param X: input variables matrix of shape = (sample length, number of input variables)
+        :param y: ground truth variable of shape = (sample length)
+        :param transfer_fn: transfer function that we want to fit
+        :return: None
+        """
+        min_cost = np.inf
+        best_performer = (-1, -1)
+        best_coeff = None
+        for i in comb(range(X.shape[1]),2):
+            train_matrix_x = np.array([X[:floor(X.shape[0] * self.ts_split), i[0]],
+                                       X[:floor(X.shape[0] * self.ts_split), i[1]]])
+            train_matrix_y = np.array(y[:floor(y.shape[0] * self.ts_split)])
+            test_matrix_x = np.array([X[floor(X.shape[0] * self.ts_split):, i[0]],
+                                      X[floor(X.shape[0] * self.ts_split):, i[1]]])
+            test_matrix_y = np.array(y[floor(y.shape[0] * self.ts_split):])
+            res = self.calc_poly_coeff(train_matrix_x, train_matrix_y, transfer_fn)
+            coeffs = res[0]
+            mse = self.evaluate_poly(coeffs,test_matrix_x, test_matrix_y, transfer_fn)
+            print(mse)
+            if mse < min_cost:
+                min_cost = mse
+                best_performer = i
+                best_coeff = coeffs
+        self.indexes = best_performer
+        self.coeffs = best_coeff
+        print(self.indexes, " " , self.coeffs)
+        pass

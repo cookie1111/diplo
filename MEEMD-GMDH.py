@@ -3,12 +3,12 @@ from emd import sift
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from utils import PolyLeastSquares, GMDH, mean_square_error, DataLoader
+from utils import PolyLeastSquares, GMDH, mean_square_error, DataLoader, MatrixGMDHLayer, radial_basis
 from time import process_time_ns
 from math import floor
 
 
-TEST = 6
+TEST = 7
 
 class MEEMDGMDH:
 
@@ -122,8 +122,25 @@ if __name__ == '__main__':
         end_model.train()
 
     if TEST == 6:
-        si = np.sin(range(100))*10
+        si = np.sin(0.1*np.array(list(range(100))))*10
         ts = np.random.uniform(-1, 1, size=(100,))
+        sig = si + ts
         plt.figure()
         plt.plot(range(len(ts)), si + ts)
         plt.show()
+        matrix = np.lib.stride_tricks.sliding_window_view(sig, window_shape=7)
+        gmdh = MatrixGMDHLayer([radial_basis])
+        insert = np.array([matrix[:, 0], matrix[:, 1]])
+        gmdh.calc_poly_coeff(insert, matrix[:, -1])
+
+    if TEST == 7:
+        si = np.sin(0.1 * np.array(list(range(100)))) * 10
+        ts = np.random.uniform(-1, 1, size=(100,))
+        sig = si + ts
+        plt.figure()
+        plt.plot(range(len(ts)), si + ts)
+        plt.show()
+        matrix = np.lib.stride_tricks.sliding_window_view(sig, window_shape=7)
+        gmdh = MatrixGMDHLayer([radial_basis])
+        gmdh.pick_best_combination_fn(matrix[:, :-1], matrix[:, -1], radial_basis)
+
