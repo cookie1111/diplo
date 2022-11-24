@@ -609,7 +609,8 @@ def hyperbolic_tangent(coeffs, x, use_poly = True):
 
 
 def inverse_hyperbolic_tangent(y):
-    return -np.log(2 / (y + 1) - 1)/2
+    #print(2 / (y + 1) - 1,np.log((2 / (y + 1) - 1)) )
+    return -np.log((2 / (y + 1) - 1))/2
 
 
 def normalize_ts(ts, ratio):

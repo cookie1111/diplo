@@ -150,14 +150,14 @@ if __name__ == '__main__':
         ts = np.random.uniform(-1, 1, size=(100,))
         sig = utils.normalize_ts(si + ts, 0.75)
         plt.figure()
-        plt.plot(range(len(ts)), si + ts)
+        plt.plot(range(len(ts)), sig)
         plt.show()
         matrix = np.lib.stride_tricks.sliding_window_view(sig, window_shape=7)
         gmdh = MatrixGMDHLayer([radial_basis])
         gmdh.train_layer(matrix[:, :-1], matrix[:, -1], [(utils.poly, lambda x: x),
                                                          (utils.sigmoid, utils.inverse_sigmoid),
-                                                         (utils.radial_basis, utils.inverse_radial_basis),
-                                                         (utils.hyperbolic_tangent,utils.inverse_hyperbolic_tangent)],
+                                                         (utils.radial_basis, utils.inverse_radial_basis)],
+                                                         #(utils.hyperbolic_tangent,utils.inverse_hyperbolic_tangent)],
                          ensamble_function=None)
 
 
