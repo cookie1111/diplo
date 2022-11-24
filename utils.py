@@ -562,7 +562,11 @@ def create_combs(X: np.ndarray):
     return None
 
 
-def poly(x: np.ndarray, coeff: np.ndarray | list = [1, 1, 1, 1, 1, 1]):
+def poly(coeff: np.ndarray | list, x: np.ndarray, use_poly=True):
+    # pass through
+    if not use_poly:
+        return x
+
     coeffs = coeff[0], np.array([coeff[1], coeff[2]]), np.array([[coeff[3], coeff[5] / 2], [coeff[5] / 2, coeff[4]]])
     if x.shape[0] != 2:
         raise DimMismatch(x.shape)
@@ -575,27 +579,40 @@ def poly(x: np.ndarray, coeff: np.ndarray | list = [1, 1, 1, 1, 1, 1]):
     return coeffs[0] + tres + dos
 
 
-def radial_basis(coeffs, x):
-    return np.exp(-np.square(poly(x, coeffs)))
+def radial_basis(coeffs, x, use_poly = True):
+    if use_poly:
+        return np.exp(-np.square(poly(coeffs, x)))
+    else:
+        return np.exp(-np.square(x))
 
 
-def prep_func(ts_x: np.ndarray, ts_y: np.ndarray, transfer_func: Callable):
-    def func(coeffs):
-        return ts_y - transfer_func(coeffs, ts_x)
+def sigmoid(coeffs, x, use_poly = True):
+    if use_poly:
+        return 1/(1+np.exp(-poly(coeffs,x)))
+    else:
+        return 1 / (1 + np.exp(-x))
 
-    return func
 
+def hyperbolic_tangent(coeffs, x, use_poly = True):
+    if use_poly:
+        return 2 / (1 + np.exp(-2 * poly(coeffs, x)))
+    else:
+        return 2 / (1 + np.exp(-2 * x))
 
 class MatrixGMDHLayer:
 
     def __init__(self, transfer_functions: list = [], error_function: Callable = mean_square_error,
-                 train_select_split: float = 0.75):
+                 train_select_split: float = 0.75, max_layer_size = 128):
         self.transfer_functions = transfer_functions
         self.error_function = error_function
         self.added_value = (0, 0)
         self.ts_split = train_select_split
         self.indexes = (-1, -1)
         self.coeffs = None
+        self.ts = None
+        self.replace = None
+        self.max_layer_size = max_layer_size
+
 
     def calc_poly_coeff(self, X: np.ndarray, y: np.ndarray, transfer_func: Callable):
         """
@@ -603,30 +620,34 @@ class MatrixGMDHLayer:
 
         :param X: shape = (2 combined input variables, length of sample)
         :param y: shape = (length of sample)
+        :param transfer_func: transfer function that accepts coeff, X
         :return: coeff with the highest value
         """
 
-        res = least_squares(lambda coeffs, ts_x, ts_y, ts_f: ts_y - ts_f(coeffs, ts_x), np.array([3, 1, 2, 1, 1, 1]),
-                            args=(X, y, transfer_func))
+        res = least_squares(lambda coeffs, ts_x, ts_y, ts_f: ts_f(None, ts_y, use_poly=False) - ts_f(coeffs, ts_x),
+                            np.array([3, 1, 2, 1, 1, 1]), args=(X, y, transfer_func))
         return res.x, res.cost
 
     @staticmethod
-    def evaluate_poly(coeffs, X: np.ndarray, y: np.ndarray, transfer_fn: Callable):
-        return mean_square_error(transfer_fn(coeffs, X), y)
+    def evaluate_poly(coeffs, X: np.ndarray, y: np.ndarray, transfer_fn: Callable,
+                      cost_fn: Callable = mean_square_error):
+        return cost_fn(transfer_fn(coeffs, X), transfer_fn(None, y, False))
 
-    def pick_best_combination_fn(self, X: np.ndarray, y: np.ndarray, transfer_fn: Callable):
+
+    def pick_best_combination_fn(self, X: np.ndarray, y: np.ndarray, transfer_fn: Callable, cost_fn: Callable):
         """
         Picks only the best performing combination and returns it
 
         :param X: input variables matrix of shape = (sample length, number of input variables)
         :param y: ground truth variable of shape = (sample length)
         :param transfer_fn: transfer function that we want to fit
+        :param cost_fn: function used to calculate the cost/error of the trained result on the selection set
         :return: None
         """
         min_cost = np.inf
         best_performer = (-1, -1)
         best_coeff = None
-        for i in comb(range(X.shape[1]),2):
+        for i in comb(range(X.shape[1]), 2):
             train_matrix_x = np.array([X[:floor(X.shape[0] * self.ts_split), i[0]],
                                        X[:floor(X.shape[0] * self.ts_split), i[1]]])
             train_matrix_y = np.array(y[:floor(y.shape[0] * self.ts_split)])
@@ -635,13 +656,61 @@ class MatrixGMDHLayer:
             test_matrix_y = np.array(y[floor(y.shape[0] * self.ts_split):])
             res = self.calc_poly_coeff(train_matrix_x, train_matrix_y, transfer_fn)
             coeffs = res[0]
-            mse = self.evaluate_poly(coeffs,test_matrix_x, test_matrix_y, transfer_fn)
-            print(mse)
+            mse = self.evaluate_poly(coeffs, test_matrix_x, test_matrix_y, transfer_fn, cost_fn)
+            mse_poly = self.evaluate_poly(coeffs, test_matrix_x, test_matrix_y, poly, cost_fn)
             if mse < min_cost:
                 min_cost = mse
                 best_performer = i
                 best_coeff = coeffs
         self.indexes = best_performer
         self.coeffs = best_coeff
-        print(self.indexes, " " , self.coeffs)
-        pass
+        #print(self.indexes, " ", self.coeffs)
+        return best_performer, coeffs
+
+    def train_layer(self, X: np.ndarray, y: np.ndarray, transfer_functions: list[tuple[Callable, Callable]],
+                    ensamble_function: Callable, cost_function: Callable = mean_square_error,
+                    select_function: Callable = lambda res: [min(range(len(res)), key=res.__getitem__)],
+                    use_ensamble: bool = False):
+        """
+        Construct a train ensamble of n*comb(X.shape[1],2) where n is number of transfer functions given, and connect
+        the different transfer functions, for the same combination using the ensamble rule. Evaluate the results using
+        the cost function and select best results using the selection function
+
+        :param X: np.array of shape = (sample length, number of input variables) input variables to train on
+        :param y: np.array of shape = (sample length) ground truth
+        :param transfer_functions: list of transfer functions and their inverses to be used for training the model,
+        they have to recieve 3 parameters in this order: coefficients(this will be evaluated), input, bool check for
+        wether the function is being used on the input variables(use the polynomial function) or the ground truth,
+        if ground truth then set to False if input vars set to True.
+        :param ensamble_function: function that receives np.array of shape = (combinations, number of transfer functions
+        provided)
+        :param cost_function: used for evaluating results for the selection process, input has to be (z: np.array,
+        y: np.array) z being predicted result and y being the ground truth and returns the cost: float
+        :param select_function: select_function receives as input np.array of shape =
+        (floor(sample length * (1 - train_select_ratio)) of  returns a list of indexes
+        :param use_ensamble: wether to construct an ensamble(True) or just chose best performing
+        :return:
+        """
+        tf_best = {}
+        cur_best = None
+        best_cost = np.inf
+        for tf in transfer_functions:
+            tf_best[tf] = self.pick_best_combination_fn(X, y, tf, cost_function)
+            cost = self.evaluate_poly(tf_best[tf][1],
+                                      np.array([X[floor(X.shape[0] * self.ts_split):, tf_best[tf][0][0]],
+                                                X[floor(X.shape[0] * self.ts_split):, tf_best[tf][0][1]]]),
+                                      y[floor(len(y)*self.ts_split):],
+                                      transfer_fn=poly)
+            if best_cost > cost:
+                cur_best = tf
+                best_cost = cost
+            print(tf.__name__+":", cost)
+
+        self.indexes, self.coeffs = tf_best[cur_best]
+        if X.shape[1] > self.max_layer_size:
+            self.replace = True
+
+
+
+
+

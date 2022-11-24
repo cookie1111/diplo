@@ -4,11 +4,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from utils import PolyLeastSquares, GMDH, mean_square_error, DataLoader, MatrixGMDHLayer, radial_basis
+import utils
 from time import process_time_ns
 from math import floor
 
 
-TEST = 7
+TEST = 8
 
 class MEEMDGMDH:
 
@@ -143,4 +144,17 @@ if __name__ == '__main__':
         matrix = np.lib.stride_tricks.sliding_window_view(sig, window_shape=7)
         gmdh = MatrixGMDHLayer([radial_basis])
         gmdh.pick_best_combination_fn(matrix[:, :-1], matrix[:, -1], radial_basis)
+
+    if TEST == 8:
+        si = np.sin(0.1 * np.array(list(range(100)))) * 10
+        ts = np.random.uniform(-1, 1, size=(100,))
+        sig = si + ts
+        plt.figure()
+        plt.plot(range(len(ts)), si + ts)
+        plt.show()
+        matrix = np.lib.stride_tricks.sliding_window_view(sig, window_shape=7)
+        gmdh = MatrixGMDHLayer([radial_basis])
+        gmdh.train_layer(matrix[:, :-1], matrix[:, -1], [utils.poly, utils.sigmoid, utils.radial_basis,
+                                                         utils.hyperbolic_tangent], ensamble_function=None)
+
 
