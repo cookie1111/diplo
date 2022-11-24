@@ -159,5 +159,6 @@ if __name__ == '__main__':
                                                          (utils.radial_basis, utils.inverse_radial_basis)],
                                                          #(utils.hyperbolic_tangent,utils.inverse_hyperbolic_tangent)],
                          ensamble_function=None)
+        print(gmdh.forward(matrix[:, :-1]).shape)
 
 

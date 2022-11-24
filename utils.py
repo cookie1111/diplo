@@ -747,9 +747,18 @@ class MatrixGMDHLayer:
 
         costs_prev.sort()
         self.layer = costs_prev[:self.max_layer_size]
+
         #costs_prev
 
-    def forward(self):
-        pass
-
-
+    def forward(self, X):
+        res = []
+        for i in self.layer:
+            if i[1][1] == -1:
+                res.append(X[:, i[1][0]])
+            else:
+                x1 = i[3][0](None, X[:, i[1][0]], False)
+                x2 = i[3][0](None, X[:, i[1][1]], False)
+                y = poly(i[2], np.array([x1, x2]))
+                res.append(i[3][1](y))
+        res = np.array(res)
+        return res.T
