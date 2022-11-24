@@ -586,6 +586,10 @@ def radial_basis(coeffs, x, use_poly = True):
         return np.exp(-np.square(x))
 
 
+def inverse_radial_basis(y):
+    return np.sqrt(-np.log(y))
+
+
 def sigmoid(coeffs, x, use_poly = True):
     if use_poly:
         return 1/(1+np.exp(-poly(coeffs,x)))
@@ -593,11 +597,19 @@ def sigmoid(coeffs, x, use_poly = True):
         return 1 / (1 + np.exp(-x))
 
 
+def inverse_sigmoid(y):
+    return np.log(y / (1 - y))
+
+
 def hyperbolic_tangent(coeffs, x, use_poly = True):
     if use_poly:
         return 2 / (1 + np.exp(-2 * poly(coeffs, x)))
     else:
         return 2 / (1 + np.exp(-2 * x))
+
+
+def inverse_hyperbolic_tangent(y):
+    return -np.log(2 / (y + 1) - 1)/2
 
 
 def normalize_ts(ts, ratio):
@@ -614,7 +626,8 @@ class MatrixGMDHLayer:
         self.error_function = error_function
         self.added_value = (0, 0)
         self.ts_split = train_select_split
-        self.indexes = (-1, -1)
+        self.new_combs = None
+        self.indexes = None
         self.coeffs = None
         self.ts = None
         self.replace = None
@@ -636,9 +649,9 @@ class MatrixGMDHLayer:
         return res.x, res.cost
 
     @staticmethod
-    def evaluate_poly(coeffs, X: np.ndarray, y: np.ndarray, transfer_fn: Callable,
+    def evaluate_poly(coeffs, X: np.ndarray, y: np.ndarray, transfer_fn: tuple[Callable,Callable],
                       cost_fn: Callable = mean_square_error):
-        return cost_fn(transfer_fn(coeffs, X), transfer_fn(None, y, False))
+        return cost_fn(transfer_fn[1](poly(coeffs, X)), transfer_fn[1](y))
 
 
     def pick_best_combination_fn(self, X: np.ndarray, y: np.ndarray, transfer_fn: Callable, cost_fn: Callable):
@@ -669,10 +682,38 @@ class MatrixGMDHLayer:
                 min_cost = mse
                 best_performer = i
                 best_coeff = coeffs
-        self.indexes = best_performer
+        self.new_combs = best_performer
         self.coeffs = best_coeff
         #print(self.indexes, " ", self.coeffs)
         return best_performer, coeffs, mse
+
+    def train_combinations_tf(self, X: np.ndarray, y: np.ndarray, transfer_fn: tuple[Callable, Callable],
+                              cost_fn: Callable):
+        """
+        Picks only the best performing combination and returns it
+
+        :param X: input variables matrix of shape = (sample length, number of input variables)
+        :param y: ground truth variable of shape = (sample length)
+        :param transfer_fn: transfer function that we want to fit and its inverse
+        :param cost_fn: function used to calculate the cost/error of the trained result on the selection set
+        :return: None
+        """
+        combs = []
+        X = transfer_fn[0](None, X, False)
+        y = transfer_fn[0](None, y, False)
+        for i in comb(range(X.shape[1]), 2):
+            train_matrix_x = np.array([X[:floor(X.shape[0] * self.ts_split), i[0]],
+                                       X[:floor(X.shape[0] * self.ts_split), i[1]]])
+            train_matrix_y = np.array(y[:floor(y.shape[0] * self.ts_split)])
+            test_matrix_x = np.array([X[floor(X.shape[0] * self.ts_split):, i[0]],
+                                      X[floor(X.shape[0] * self.ts_split):, i[1]]])
+            test_matrix_y = np.array(y[floor(y.shape[0] * self.ts_split):])
+            res = self.calc_poly_coeff(train_matrix_x, train_matrix_y, poly)
+            coeffs = res[0]
+
+            mse_poly = self.evaluate_poly(coeffs, test_matrix_x, test_matrix_y, transfer_fn, cost_fn)
+            combs.append((mse_poly, i, coeffs, transfer_fn))
+        return combs
 
     def train_layer(self, X: np.ndarray, y: np.ndarray, transfer_functions: list[tuple[Callable, Callable]],
                     ensamble_function: Callable, cost_function: Callable = mean_square_error,
@@ -698,26 +739,18 @@ class MatrixGMDHLayer:
         :param use_ensamble: wether to construct an ensamble(True) or just chose best performing
         :return:
         """
-        tf_best = {}
-        cur_best = None
-        best_cost = np.inf
+        costs_prev = []
+        # get costs of prev layer
+        for i in range(X.shape[1]):
+            costs_prev.append((cost_function(X[floor(X.shape[0] * self.ts_split):, i],
+                                             y[floor(len(y) * self.ts_split):]), (i, -1), "TRANSFER"))
+        costs_prev.sort()
         for tf in transfer_functions:
-            tf_best[tf] = self.pick_best_combination_fn(X, y, tf, cost_function)
-            cost = self.evaluate_poly(tf_best[tf][1],
-                                      np.array([X[floor(X.shape[0] * self.ts_split):, tf_best[tf][0][0]],
-                                                X[floor(X.shape[0] * self.ts_split):, tf_best[tf][0][1]]]),
-                                      y[floor(len(y)*self.ts_split):],
-                                      transfer_fn=poly)
-            if best_cost > cost:
-                cur_best = tf
-                best_cost = cost
-            print(tf.__name__+":", cost, " ", tf_best[tf][2])
+            costs_prev = costs_prev + self.train_combinations_tf(X, y, tf, cost_function)
 
-        self.indexes, self.coeffs, train_cost = tf_best[cur_best]
-        if X.shape[1] > self.max_layer_size:
-            self.replace = True
+        costs_prev.sort()
+        print(costs_prev)
 
-
-
+        #costs_prev
 
 

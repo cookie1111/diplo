@@ -154,7 +154,10 @@ if __name__ == '__main__':
         plt.show()
         matrix = np.lib.stride_tricks.sliding_window_view(sig, window_shape=7)
         gmdh = MatrixGMDHLayer([radial_basis])
-        gmdh.train_layer(matrix[:, :-1], matrix[:, -1], [utils.poly, utils.sigmoid, utils.radial_basis,
-                                                         utils.hyperbolic_tangent], ensamble_function=None)
+        gmdh.train_layer(matrix[:, :-1], matrix[:, -1], [(utils.poly, lambda x: x),
+                                                         (utils.sigmoid, utils.inverse_sigmoid),
+                                                         (utils.radial_basis, utils.inverse_radial_basis),
+                                                         (utils.hyperbolic_tangent,utils.inverse_hyperbolic_tangent)],
+                         ensamble_function=None)
 
 
