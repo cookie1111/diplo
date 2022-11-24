@@ -148,7 +148,7 @@ if __name__ == '__main__':
     if TEST == 8:
         si = np.sin(0.1 * np.array(list(range(100)))) * 10
         ts = np.random.uniform(-1, 1, size=(100,))
-        sig = si + ts
+        sig = utils.normalize_ts(si + ts, 0.75)
         plt.figure()
         plt.plot(range(len(ts)), si + ts)
         plt.show()

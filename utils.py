@@ -599,6 +599,13 @@ def hyperbolic_tangent(coeffs, x, use_poly = True):
     else:
         return 2 / (1 + np.exp(-2 * x))
 
+
+def normalize_ts(ts, ratio):
+    mi = min(ts[:floor(len(ts)*ratio)])
+    mx = max(ts[:floor(len(ts)*ratio)])
+    return (ts - mi)/(mx - mi)
+
+
 class MatrixGMDHLayer:
 
     def __init__(self, transfer_functions: list = [], error_function: Callable = mean_square_error,
@@ -665,7 +672,7 @@ class MatrixGMDHLayer:
         self.indexes = best_performer
         self.coeffs = best_coeff
         #print(self.indexes, " ", self.coeffs)
-        return best_performer, coeffs
+        return best_performer, coeffs, mse
 
     def train_layer(self, X: np.ndarray, y: np.ndarray, transfer_functions: list[tuple[Callable, Callable]],
                     ensamble_function: Callable, cost_function: Callable = mean_square_error,
@@ -704,9 +711,9 @@ class MatrixGMDHLayer:
             if best_cost > cost:
                 cur_best = tf
                 best_cost = cost
-            print(tf.__name__+":", cost)
+            print(tf.__name__+":", cost, " ", tf_best[tf][2])
 
-        self.indexes, self.coeffs = tf_best[cur_best]
+        self.indexes, self.coeffs, train_cost = tf_best[cur_best]
         if X.shape[1] > self.max_layer_size:
             self.replace = True
 
