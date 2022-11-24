@@ -627,11 +627,7 @@ class MatrixGMDHLayer:
         self.error_function = error_function
         self.added_value = (0, 0)
         self.ts_split = train_select_split
-        self.new_combs = None
-        self.indexes = None
-        self.coeffs = None
-        self.ts = None
-        self.replace = None
+        self.layer = None
         self.max_layer_size = max_layer_size
 
 
@@ -750,8 +746,10 @@ class MatrixGMDHLayer:
             costs_prev = costs_prev + self.train_combinations_tf(X, y, tf, cost_function)
 
         costs_prev.sort()
-        print(costs_prev)
-
+        self.layer = costs_prev[:self.max_layer_size]
         #costs_prev
+
+    def forward(self):
+        pass
 
 
