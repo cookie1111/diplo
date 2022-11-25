@@ -619,10 +619,51 @@ def normalize_ts(ts, ratio):
     return (ts - mi)/(mx - mi)
 
 
-class MatrixGMDHLayer:
+class GMDHSlim:
 
+    def __init__(self, transfer_functions: list[tuple[Callable, Callable]] = [],
+                 error_function: Callable= mean_square_error,
+                 train_select_split: float = 0.75, max_layer_size: int = 128):
+        self.transfer_functions = transfer_functions
+        self.error_function = error_function
+        self.ts_split = train_select_split
+        self.layers = []
+        self.max_layer_size = max_layer_size
+
+    def construct_GMDH(self, X, y, stop_leniency):
+        cost = np.inf
+        cost_bad = 0
+        i = 1
+        print("Starting training of neural network")
+        while 1:
+            print(f"Training layer {i}")
+            self.layers.append(MatrixGMDHLayer(self.transfer_functions, self.error_function, self.ts_split,
+                                               self.max_layer_size))
+            cur_best_neur = self.layers[-1].train_layer(X, y)
+            X = self.layers[-1].forward(X)
+            print(X)
+            print(f"Layer {i} trained")
+            i = i + 1
+            if cost > cur_best_neur[0]:
+                cost = cur_best_neur[0]
+                cost_bad = 0
+            else:
+                print(f"Layer {i} performed worse than previous layer")
+                cost_bad = cost_bad + 1
+                if cost_bad == stop_leniency:
+                    print(f"Amount of worse performances has exceeded {stop_leniency} finishing training of the model!")
+                    self.layers = self.layers[:-stop_leniency]
+                    self.layers[-1].reduce_to_output()
+                    break
+
+
+class MatrixGMDHLayer:
+    """
+    THIS CLASS USES THE TRANSFER FUNCTION AS INPUT NOT OUTPUT
+    INPUT -> TRANSFER FUNCTION -> POLY -> INVERSE TRANSFER FUNCTION -> OUTPUT
+    """
     def __init__(self, transfer_functions: list = [], error_function: Callable = mean_square_error,
-                 train_select_split: float = 0.75, max_layer_size = 128):
+                 train_select_split: float = 0.75, max_layer_size: int = 128):
         self.transfer_functions = transfer_functions
         self.error_function = error_function
         self.added_value = (0, 0)
@@ -630,8 +671,8 @@ class MatrixGMDHLayer:
         self.layer = None
         self.max_layer_size = max_layer_size
 
-
-    def calc_poly_coeff(self, X: np.ndarray, y: np.ndarray, transfer_func: Callable):
+    @staticmethod
+    def calc_poly_coeff(X: np.ndarray, y: np.ndarray, transfer_func: Callable):
         """
         Calculates and chooses the best
 
@@ -646,10 +687,9 @@ class MatrixGMDHLayer:
         return res.x, res.cost
 
     @staticmethod
-    def evaluate_poly(coeffs, X: np.ndarray, y: np.ndarray, transfer_fn: tuple[Callable,Callable],
+    def evaluate_poly(coeffs, X: np.ndarray, y: np.ndarray, transfer_fn: tuple[Callable, Callable],
                       cost_fn: Callable = mean_square_error):
         return cost_fn(transfer_fn[1](poly(coeffs, X)), transfer_fn[1](y))
-
 
     def pick_best_combination_fn(self, X: np.ndarray, y: np.ndarray, transfer_fn: Callable, cost_fn: Callable):
         """
@@ -712,10 +752,10 @@ class MatrixGMDHLayer:
             combs.append((mse_poly, i, coeffs, transfer_fn))
         return combs
 
-    def train_layer(self, X: np.ndarray, y: np.ndarray, transfer_functions: list[tuple[Callable, Callable]],
-                    ensamble_function: Callable, cost_function: Callable = mean_square_error,
+    def train_layer(self, X: np.ndarray, y: np.ndarray, transfer_functions: list[tuple[Callable, Callable]] = None,
+                    ensamble_function: Callable = None, cost_function: Callable = None,
                     select_function: Callable = lambda res: [min(range(len(res)), key=res.__getitem__)],
-                    use_ensamble: bool = False):
+                    use_ensamble: bool = False) -> tuple[float, tuple[int, int], list[int], tuple[Callable, Callable]]:
         """
         Construct a train ensamble of n*comb(X.shape[1],2) where n is number of transfer functions given, and connect
         the different transfer functions, for the same combination using the ensamble rule. Evaluate the results using
@@ -734,8 +774,12 @@ class MatrixGMDHLayer:
         :param select_function: select_function receives as input np.array of shape =
         (floor(sample length * (1 - train_select_ratio)) of  returns a list of indexes
         :param use_ensamble: wether to construct an ensamble(True) or just chose best performing
-        :return:
+        :return: best performing neuron
         """
+        if transfer_functions is None:
+            transfer_functions = self.transfer_functions
+        if cost_function is None:
+            cost_function = self.error_function
         costs_prev = []
         # get costs of prev layer
         for i in range(X.shape[1]):
@@ -748,17 +792,28 @@ class MatrixGMDHLayer:
         costs_prev.sort()
         self.layer = costs_prev[:self.max_layer_size]
 
+        return costs_prev[0]
         #costs_prev
 
-    def forward(self, X):
+    def forward(self, X: np.ndarray) -> np.ndarray:
+        """
+        does a forward pass fo the network
+
+        :param X: input variables from previous layer
+        :return:
+        """
         res = []
         for i in self.layer:
             if i[1][1] == -1:
                 res.append(X[:, i[1][0]])
             else:
+                # use the neurons transfer function for the inputs
                 x1 = i[3][0](None, X[:, i[1][0]], False)
                 x2 = i[3][0](None, X[:, i[1][1]], False)
                 y = poly(i[2], np.array([x1, x2]))
                 res.append(i[3][1](y))
         res = np.array(res)
         return res.T
+
+    def reduce_to_output(self):
+        self.layer = [self.layer[0]]
