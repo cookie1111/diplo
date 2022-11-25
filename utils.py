@@ -4,6 +4,8 @@ import concurrent.futures as ft
 from typing import Callable, Union
 from math import floor
 from random import sample
+import warnings
+warnings.filterwarnings("error")
 
 # use scipy for value estimation
 from scipy.optimize import least_squares
@@ -587,7 +589,11 @@ def radial_basis(coeffs, x, use_poly = True):
 
 
 def inverse_radial_basis(y):
-    return np.sqrt(-np.log(y))
+    try:
+        return np.sqrt(-np.log(y))
+    except RuntimeWarning:
+        print(np.log(y))
+        print(y, np.sqrt(-np.log(y)))
 
 
 def sigmoid(coeffs, x, use_poly = True):

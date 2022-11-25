@@ -170,7 +170,7 @@ if __name__ == '__main__':
         plt.show()
         matrix = np.lib.stride_tricks.sliding_window_view(sig, window_shape=7)
         gmdh = utils.GMDHSlim([(utils.poly, lambda x: x),
-                               (utils.sigmoid, utils.inverse_sigmoid),
-                               (utils.radial_basis, utils.inverse_radial_basis)],)
+                               (utils.sigmoid, utils.inverse_sigmoid)],)
+                               #(utils.radial_basis, utils.inverse_radial_basis)],)
         gmdh.construct_GMDH(matrix[:, :-1], matrix[:, -1], 3)
 
