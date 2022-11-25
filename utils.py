@@ -649,7 +649,7 @@ class GMDHSlim:
             X = self.layers[-1].forward(X)
             print(X)
             print(f"Layer {i} trained")
-            i = i + 1
+
             if cost > cur_best_neur[0]:
                 cost = cur_best_neur[0]
                 cost_bad = 0
@@ -661,7 +661,7 @@ class GMDHSlim:
                     self.layers = self.layers[:-stop_leniency]
                     self.layers[-1].reduce_to_output()
                     break
-
+            i = i + 1
 
 class MatrixGMDHLayer:
     """

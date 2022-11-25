@@ -9,7 +9,7 @@ from time import process_time_ns
 from math import floor
 
 
-TEST = 9
+TEST = 10
 
 class MEEMDGMDH:
 
@@ -174,3 +174,13 @@ if __name__ == '__main__':
                                #(utils.radial_basis, utils.inverse_radial_basis)],)
         gmdh.construct_GMDH(matrix[:, :-1], matrix[:, -1], 3)
 
+    if TEST == 10:
+        s = utils.normalize_ts(s, 0.75)
+        matrix = np.lib.stride_tricks.sliding_window_view(s, window_shape=7)
+        plt.figure()
+        plt.plot(range(len(s)), s)
+        plt.show()
+        gmdh = utils.GMDHSlim([(utils.poly, lambda x: x),
+                               (utils.sigmoid, utils.inverse_sigmoid)], )
+        # (utils.radial_basis, utils.inverse_radial_basis)],)
+        gmdh.construct_GMDH(matrix[:, :-1], matrix[:, -1], 3)
