@@ -823,3 +823,10 @@ class MatrixGMDHLayer:
 
     def reduce_to_output(self):
         self.layer = [self.layer[0]]
+
+
+#TODO PLAN
+"""
+Need to not inverse the prediciton but jsut have to get ground truth with transformed values
+Always compare it to ground truth without sending it through the transfer function...
+"""
