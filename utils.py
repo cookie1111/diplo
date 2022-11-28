@@ -555,6 +555,15 @@ class DataLoader:
 
         return (train_x, train_y), (select_x, select_y), (val_x, val_y)
 
+def printProgressBar(iteration, total, prefix = '', suffix = '', decimals = 1, length = 100,
+                     fill = '█', printEnd = '\r'):
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + '-' * (length - filledLength)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    # Print New Line on Complete
+    if iteration == total:
+        print()
 
 def create_combs(X: np.ndarray):
     for i in range(X.shape[1]):
@@ -650,7 +659,7 @@ class GMDHSlim:
             cur_best_neur = self.layers[-1].train_layer(X_train, y_train, X_select, y_select)
             X_train = self.layers[-1].forward(X_train)
             X_select = self.layers[-1].forward(X_select)
-            print(f"In construct GMDH after one pass{X_train.shape}, {X_select.shape}")
+            #print(f"In construct GMDH after one pass{X_train.shape}, {X_select.shape}")
             print(f"Layer {i} trained")
 
             if cost > cur_best_neur[0]:
@@ -758,14 +767,14 @@ class MatrixGMDHLayer:
         """
         combs = []
         cntr = 0
-        all = (X_train.shape[1]*(X_train.shape[1]-1))/2
+        overall = (X_train.shape[1]*(X_train.shape[1]-1))/2
         X_train = transfer_fn[0](None, X_train, False)
         X_select = transfer_fn[0](None, X_select, False)
         #print(f"Train combinations({transfer_fn[0].__name__}): {X_train.shape}, {X_select.shape}")
         #y = transfer_fn[0](None, y, False)
-        for i in comb(range(X_train.shape[1]), 2):
-            if cntr % 500 == 0:
-                print(f"{cntr} out of {all} combinations trained")
+        printProgressBar(0, overall, prefix=transfer_fn[0].__name__, suffix=str(overall))
+        for cntr, i in enumerate(comb(range(X_train.shape[1]), 2)):
+            printProgressBar(cntr, overall, prefix=transfer_fn[0].__name__, suffix=str(overall))
             train_matrix_x = np.array([X_train[:, i[0]], X_train[:, i[1]]])
             test_matrix_x = np.array([X_select[:, i[0]], X_select[:, i[1]]])
 
