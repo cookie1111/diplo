@@ -636,8 +636,8 @@ class GMDHSlim:
         self.layers = []
         self.max_layer_size = max_layer_size
 
-    # CHANGE
-    def construct_GMDH(self, X, y, stop_leniency):
+    # DONE
+    def construct_GMDH(self, X_train, y_train, X_select, y_select, stop_leniency):
         cost = np.inf
         cost_bad = 0
         i = 1
@@ -646,8 +646,9 @@ class GMDHSlim:
             print(f"Training layer {i}")
             self.layers.append(MatrixGMDHLayer(self.transfer_functions, self.error_function, self.ts_split,
                                                self.max_layer_size))
-            cur_best_neur = self.layers[-1].train_layer(X, y)
-            X = self.layers[-1].forward(X)
+            cur_best_neur = self.layers[-1].train_layer(X_train, y_train, X_select, y_select)
+            X_train = self.layers[-1].forward(X_train)
+            X_select = self.layers[-1].forward(X_select)
             #print(X)
             print(f"Layer {i} trained")
 
@@ -738,37 +739,44 @@ class MatrixGMDHLayer:
         #print(self.indexes, " ", self.coeffs)
         return best_performer, coeffs, mse
 
-    # CHANGE
-    def train_combinations_tf(self, X: np.ndarray, y: np.ndarray, transfer_fn: tuple[Callable, Callable],
+    # DONE
+    def train_combinations_tf(self, X_train: np.ndarray, y_train: np.ndarray, X_select: np.ndarray,
+                              y_select: np.ndarray, transfer_fn: tuple[Callable, Callable],
                               cost_fn: Callable):
         """
         Picks only the best performing combination and returns it
 
-        :param X: input variables matrix of shape = (sample length, number of input variables)
-        :param y: ground truth variable of shape = (sample length)
+        :param X_train: input variables matrix of shape = (sample length * train_split, number of input variables)
+        :param X_select: input variables matrix of shape = (sample length * (1-train_split), number of input variables)
+        :param y_train: ground truth variable of shape = (sample length * (train_split))
+        :param y_select: ground truth variable of shape = (sample length * (1 - train_split))
         :param transfer_fn: transfer function that we want to fit and its inverse
         :param cost_fn: function used to calculate the cost/error of the trained result on the selection set
         :return: None
         """
         combs = []
-        X = transfer_fn[0](None, X, False)
+        X_train = transfer_fn[0](None, X_train, False)
+        X_select = transfer_fn[0](None, X_train, False)
         #y = transfer_fn[0](None, y, False)
-        for i in comb(range(X.shape[1]), 2):
-            train_matrix_x = np.array([X[:floor(X.shape[0] * self.ts_split), i[0]],
+        for i in comb(range(X_train.shape[1]), 2):
+            """train_matrix_x = np.array([X[:floor(X.shape[0] * self.ts_split), i[0]],
                                        X[:floor(X.shape[0] * self.ts_split), i[1]]])
             train_matrix_y = np.array(y[:floor(y.shape[0] * self.ts_split)])
             test_matrix_x = np.array([X[floor(X.shape[0] * self.ts_split):, i[0]],
                                       X[floor(X.shape[0] * self.ts_split):, i[1]]])
-            test_matrix_y = np.array(y[floor(y.shape[0] * self.ts_split):])
-            res = self.calc_poly_coeff(train_matrix_x, train_matrix_y, poly)
+            test_matrix_y = np.array(y[floor(y.shape[0] * self.ts_split):])"""
+            train_matrix_x = np.array([X_train[:, i[0]], X_train[:, i[1]])
+            test_matrix_x = np.array([X_select[:, i[0]], X_select[:, i[1]]])
+            res = self.calc_poly_coeff(train_matrix_x, y_train, poly)
             coeffs = res[0]
 
-            mse_poly = self.evaluate_poly(coeffs, test_matrix_x, test_matrix_y, transfer_fn, cost_fn)
+            mse_poly = self.evaluate_poly(coeffs, test_matrix_x, y_select, transfer_fn, cost_fn)
             combs.append((mse_poly, i, coeffs, transfer_fn))
         return combs
 
-    # CHANGE
-    def train_layer(self, X: np.ndarray, y: np.ndarray, transfer_functions: list[tuple[Callable, Callable]] = None,
+    # DONE
+    def train_layer(self, X_train: np.ndarray, y_train: np.ndarray, X_select: np.ndarray, y_select: np.ndarray,
+                    transfer_functions: list[tuple[Callable, Callable]] = None,
                     ensamble_function: Callable = None, cost_function: Callable = None,
                     select_function: Callable = lambda res: [min(range(len(res)), key=res.__getitem__)],
                     use_ensamble: bool = False) -> tuple[float, tuple[int, int], list[int], tuple[Callable, Callable]]:
@@ -798,12 +806,14 @@ class MatrixGMDHLayer:
             cost_function = self.error_function
         costs_prev = []
         # get costs of prev layer
-        for i in range(X.shape[1]):
-            costs_prev.append((cost_function(X[floor(X.shape[0] * self.ts_split):, i],
-                                             y[floor(len(y) * self.ts_split):]), (i, -1), "TRANSFER"))
+        for i in range(X_select.shape[1]):
+            #costs_prev.append((cost_function(X[floor(X.shape[0] * self.ts_split):, i],
+            #                                 y[floor(len(y) * self.ts_split):]), (i, -1), "TRANSFER"))
+            costs_prev.append((cost_function(X_select[:, i], y_select), (i, -1), "TRANSFER"))
         costs_prev.sort()
         for tf in transfer_functions:
-            costs_prev = costs_prev + self.train_combinations_tf(X, y, tf, cost_function)
+            costs_prev = costs_prev + self.train_combinations_tf(X_train, y_train, X_select, y_select, tf,
+                                                                 cost_function)
 
         costs_prev.sort()
         self.layer = costs_prev[:self.max_layer_size]
