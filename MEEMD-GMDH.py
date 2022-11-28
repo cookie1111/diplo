@@ -19,6 +19,7 @@ class MEEMDGMDH:
         self.timeseries = ts
         self.models = None
         self.model_res = None
+        self.window_size = 0
 
     def add_noise(self, noise_amp):
         return self.timeseries + np.random.normal(0, noise_amp, len(self.timeseries))
@@ -88,13 +89,15 @@ class MEEMDGMDH:
         return model
 
     # DONE
-    def train_sets(self, fitness_fns, splits: tuple[float, float, float] = (0.75 * 0.8, 0.8, 1),) -> None:
+    def train_sets(self, fitness_fns, splits: tuple[float, float, float] = (0.75 * 0.8, 0.8, 1),
+                   window_size: int = 7) -> None:
         """
         Calculates the imfs for the ensambles and trains the corresponding models
 
         :param splits: ratio between train and selection set
         :return: None
         """
+        self.window_size = window_size
         self.models_imfs = []
         #train and selection
         imfs_train, res_train = self.create_median(*self.create_ensamble_imfs(use_split=splits[0]))
@@ -114,8 +117,8 @@ class MEEMDGMDH:
             dloader_select = DataLoader(imf[1])
             dloader_test = DataLoader(imf[2])
 
-            train_split = dloader_train.window_split_x_y(window_size=7)
-            select_split = dloader_select.window_split_x_y(window_size=7)
+            train_split = dloader_train.window_split_x_y(window_size=window_size)
+            select_split = dloader_select.window_split_x_y(window_size=window_size)
 
             print(f"{train_split[0].shape} , {train_split[1].shape}")
             print(f"{select_split[0].shape} , {select_split[1].shape}")
@@ -125,13 +128,29 @@ class MEEMDGMDH:
         dloader_train = DataLoader(res_train)
         dloader_select = DataLoader(res_select)
         dloader_test = DataLoader(res_test)
-        train_split = dloader_train.window_split_x_y(window_size=7)
-        select_split = dloader_select.window_split_x_y(window_size=7)
+        train_split = dloader_train.window_split_x_y(window_size=window_size)
+        select_split = dloader_select.window_split_x_y(window_size=window_size)
         self.model_res = self.gmdh_train(*train_split, *select_split, mean_square_error)
+        # TODO Need to add the test part.
 
-    def test(self, inputs=None):
-        if inputs is None:
-            pass
+    def eval(self, whole_ts: np.ndarray, start_index: int, end_index: int, no_steps_to_predict: int = 10):
+        """
+        Predict
+        Make sure that time series is of the maximum length possible
+
+        :param whole_ts: the whole history of the timeseries available
+        :param start_index: start of slice of time series that we wish to predict
+        :param end_index: end of slice of time series that we wish to predict
+        """
+        pass
+        # TODO implement the following steps:
+        # calculate imfs on the whole historical context
+
+        # set up the dataloaders
+
+        # run the models for each individual IMF
+
+        # sum the models
 
 
 if __name__ == '__main__':
