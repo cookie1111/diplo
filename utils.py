@@ -663,6 +663,7 @@ class GMDHSlim:
                     break
             i = i + 1
 
+
 class MatrixGMDHLayer:
     """
     THIS CLASS USES THE TRANSFER FUNCTION AS INPUT NOT OUTPUT
@@ -695,7 +696,8 @@ class MatrixGMDHLayer:
     @staticmethod
     def evaluate_poly(coeffs, X: np.ndarray, y: np.ndarray, transfer_fn: tuple[Callable, Callable],
                       cost_fn: Callable = mean_square_error):
-        return cost_fn(transfer_fn[1](poly(coeffs, X)), transfer_fn[1](y))
+        return cost_fn(poly(coeffs, X), y)
+        #return cost_fn(transfer_fn[1](poly(coeffs, X)), transfer_fn[1](y))
 
     def pick_best_combination_fn(self, X: np.ndarray, y: np.ndarray, transfer_fn: Callable, cost_fn: Callable):
         """
@@ -743,7 +745,7 @@ class MatrixGMDHLayer:
         """
         combs = []
         X = transfer_fn[0](None, X, False)
-        y = transfer_fn[0](None, y, False)
+        #y = transfer_fn[0](None, y, False)
         for i in comb(range(X.shape[1]), 2):
             train_matrix_x = np.array([X[:floor(X.shape[0] * self.ts_split), i[0]],
                                        X[:floor(X.shape[0] * self.ts_split), i[1]]])
@@ -817,7 +819,7 @@ class MatrixGMDHLayer:
                 x1 = i[3][0](None, X[:, i[1][0]], False)
                 x2 = i[3][0](None, X[:, i[1][1]], False)
                 y = poly(i[2], np.array([x1, x2]))
-                res.append(i[3][1](y))
+                res.append(y)
         res = np.array(res)
         return res.T
 
