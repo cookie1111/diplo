@@ -636,6 +636,7 @@ class GMDHSlim:
         self.layers = []
         self.max_layer_size = max_layer_size
 
+    # CHANGE
     def construct_GMDH(self, X, y, stop_leniency):
         cost = np.inf
         cost_bad = 0
@@ -737,6 +738,7 @@ class MatrixGMDHLayer:
         #print(self.indexes, " ", self.coeffs)
         return best_performer, coeffs, mse
 
+    # CHANGE
     def train_combinations_tf(self, X: np.ndarray, y: np.ndarray, transfer_fn: tuple[Callable, Callable],
                               cost_fn: Callable):
         """
@@ -765,6 +767,7 @@ class MatrixGMDHLayer:
             combs.append((mse_poly, i, coeffs, transfer_fn))
         return combs
 
+    # CHANGE
     def train_layer(self, X: np.ndarray, y: np.ndarray, transfer_functions: list[tuple[Callable, Callable]] = None,
                     ensamble_function: Callable = None, cost_function: Callable = None,
                     select_function: Callable = lambda res: [min(range(len(res)), key=res.__getitem__)],
@@ -831,9 +834,3 @@ class MatrixGMDHLayer:
     def reduce_to_output(self):
         self.layer = [self.layer[0]]
 
-
-#TODO PLAN
-"""
-Need to not inverse the prediciton but jsut have to get ground truth with transformed values
-Always compare it to ground truth without sending it through the transfer function...
-"""
