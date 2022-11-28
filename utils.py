@@ -756,16 +756,11 @@ class MatrixGMDHLayer:
         """
         combs = []
         X_train = transfer_fn[0](None, X_train, False)
-        X_select = transfer_fn[0](None, X_train, False)
+        X_select = transfer_fn[0](None, X_select, False)
         #y = transfer_fn[0](None, y, False)
         for i in comb(range(X_train.shape[1]), 2):
-            """train_matrix_x = np.array([X[:floor(X.shape[0] * self.ts_split), i[0]],
-                                       X[:floor(X.shape[0] * self.ts_split), i[1]]])
-            train_matrix_y = np.array(y[:floor(y.shape[0] * self.ts_split)])
-            test_matrix_x = np.array([X[floor(X.shape[0] * self.ts_split):, i[0]],
-                                      X[floor(X.shape[0] * self.ts_split):, i[1]]])
-            test_matrix_y = np.array(y[floor(y.shape[0] * self.ts_split):])"""
-            train_matrix_x = np.array([X_train[:, i[0]], X_train[:, i[1]])
+
+            train_matrix_x = np.array([X_train[:, i[0]], X_train[:, i[1]]])
             test_matrix_x = np.array([X_select[:, i[0]], X_select[:, i[1]]])
             res = self.calc_poly_coeff(train_matrix_x, y_train, poly)
             coeffs = res[0]
