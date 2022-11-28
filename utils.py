@@ -5,7 +5,7 @@ from typing import Callable, Union
 from math import floor
 from random import sample
 import warnings
-warnings.filterwarnings("error")
+#warnings.filterwarnings("error")
 
 # use scipy for value estimation
 from scipy.optimize import least_squares
@@ -344,7 +344,6 @@ Neuron specification:
         """
         return c[0], np.array([c[1], c[2]]), np.array([[c[3], c[5] / 2], [c[5] / 2, c[4]]])
 
-    # TODO add a check for correct shape for multiplication
     def calc_quadratic_matrix(self, x1: np.ndarray, x2: np.ndarray | None = None) -> np.ndarray:
         """
         calculate this neurons output based on previous layers input
@@ -578,7 +577,9 @@ def poly(coeff: np.ndarray | list, x: np.ndarray, use_poly=True):
     dos = (uno.T * x.T).sum(-1)
     tres = np.dot(x.T, coeffs[1])
     # # print(tres.shape)
-    return coeffs[0] + tres + dos
+    res = coeffs[0] + tres + dos
+    #print(f"Last line of defence: {x.shape}, {res.shape}")
+    return res
 
 
 def radial_basis(coeffs, x, use_poly = True):
@@ -627,8 +628,8 @@ def normalize_ts(ts, ratio):
 
 class GMDHSlim:
 
-    def __init__(self, transfer_functions: list[tuple[Callable, Callable]] = [],
-                 error_function: Callable= mean_square_error,
+    def __init__(self, transfer_functions: list[tuple[Callable, Callable]] | tuple[tuple[Callable, Callable]] = [],
+                 error_function: Callable = mean_square_error,
                  train_select_split: float = 0.75, max_layer_size: int = 128):
         self.transfer_functions = transfer_functions
         self.error_function = error_function
@@ -643,13 +644,13 @@ class GMDHSlim:
         i = 1
         print("Starting training of neural network")
         while 1:
-            print(f"Training layer {i}")
+            print(f"Training layer {i}, current shapes:{X_train.shape}, {X_select.shape}")
             self.layers.append(MatrixGMDHLayer(self.transfer_functions, self.error_function, self.ts_split,
                                                self.max_layer_size))
             cur_best_neur = self.layers[-1].train_layer(X_train, y_train, X_select, y_select)
             X_train = self.layers[-1].forward(X_train)
             X_select = self.layers[-1].forward(X_select)
-            #print(X)
+            print(f"In construct GMDH after one pass{X_train.shape}, {X_select.shape}")
             print(f"Layer {i} trained")
 
             if cost > cur_best_neur[0]:
@@ -695,8 +696,9 @@ class MatrixGMDHLayer:
         :param transfer_func: transfer function that accepts coeff, X
         :return: coeff with the highest value
         """
-
-        res = least_squares(lambda coeffs, ts_x, ts_y, ts_f: ts_f(None, ts_y, use_poly=False) - ts_f(coeffs, ts_x),
+        # removed the transformation on ts_y
+        #print(f"We going into poly territory: {X.shape}, {y.shape}")
+        res = least_squares(lambda coeffs, ts_x, ts_y, ts_f: np.squeeze(ts_y) - poly(coeffs, ts_x),
                             np.array([3, 1, 2, 1, 1, 1]), args=(X, y, transfer_func))
         return res.x, res.cost
 
@@ -755,18 +757,25 @@ class MatrixGMDHLayer:
         :return: None
         """
         combs = []
+        cntr = 0
+        all = (X_train.shape[1]*(X_train.shape[1]-1))/2
         X_train = transfer_fn[0](None, X_train, False)
         X_select = transfer_fn[0](None, X_select, False)
+        #print(f"Train combinations({transfer_fn[0].__name__}): {X_train.shape}, {X_select.shape}")
         #y = transfer_fn[0](None, y, False)
         for i in comb(range(X_train.shape[1]), 2):
-
+            if cntr % 500 == 0:
+                print(f"{cntr} out of {all} combinations trained")
             train_matrix_x = np.array([X_train[:, i[0]], X_train[:, i[1]]])
             test_matrix_x = np.array([X_select[:, i[0]], X_select[:, i[1]]])
+
+            #print(f"Combinations: {train_matrix_x.shape}, {test_matrix_x.shape}")
             res = self.calc_poly_coeff(train_matrix_x, y_train, poly)
             coeffs = res[0]
 
             mse_poly = self.evaluate_poly(coeffs, test_matrix_x, y_select, transfer_fn, cost_fn)
             combs.append((mse_poly, i, coeffs, transfer_fn))
+            cntr = cntr + 1
         return combs
 
     # DONE
@@ -807,6 +816,7 @@ class MatrixGMDHLayer:
             costs_prev.append((cost_function(X_select[:, i], y_select), (i, -1), "TRANSFER"))
         costs_prev.sort()
         for tf in transfer_functions:
+            #print(f"Layer train: {X_train.shape}, {X_select.shape}")
             costs_prev = costs_prev + self.train_combinations_tf(X_train, y_train, X_select, y_select, tf,
                                                                  cost_function)
 
