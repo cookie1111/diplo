@@ -7,13 +7,15 @@ from utils import PolyLeastSquares, GMDH, mean_square_error, DataLoader, MatrixG
 import utils
 from time import process_time_ns
 from math import floor
+from typing import Callable
 
 
 TEST = 10
 
+
 class MEEMDGMDH:
 
-    def __init__(self, ts):
+    def __init__(self, ts: np.ndarray, ratio) -> None:
         self.timeseries = ts
         self.models = None
         self.model_res = None
@@ -21,22 +23,34 @@ class MEEMDGMDH:
     def add_noise(self, noise_amp):
         return self.timeseries + np.random.normal(0, noise_amp, len(self.timeseries))
 
-    def get_imfs(self, timeseries):
-        s = sift.sift(timeseries, max_imfs=9)
+    def get_imfs(self, timeseries, upper_limit, amount_of_imfs: int = 9):
+        s = sift.sift(timeseries[:upper_limit], max_imfs=amount_of_imfs)
         imfs = np.array(s)
-        res = self.timeseries - np.sum(imfs, axis=-1)
+        res = self.timeseries[:upper_limit] - np.sum(imfs, axis=-1)
         return imfs, res
 
-    def create_ensamble_imfs(self, procs=1, noise_amp=0.05):
+    def create_ensamble_imfs(self, procs: int = 1, noise_amp: float = 0.05,
+                             use_split: float = 0.75) -> tuple[list[np.ndarray], np.ndarray]:
+        """
+        Calculate imfs for the given timeseries, and correct set(train/select/val) for each set the same start is
+        used, just the cut-off point changes
+
+        :param procs: amount of processes used CURRENTLY NOT IMPLEMENTED
+        :param noise_amp: amplitude of the added gaussian noise
+        :param use_split: add the upper limit -> whole set == 1, 0.5 means the upper limit is at hald of the set
+        :return: imfs + res
+        """
         if procs > 1:
             pass
         else:
-            noise_width = noise_amp * np.abs(np.max(self.timeseries) - np.min(self.timeseries))
+            upper_limit = np.floor(len(self.timeseries)*use_split)
+            noise_width = noise_amp * np.abs(np.max(self.timeseries[:upper_limit]) - np.min(self.timeseries[
+                                                                                            :upper_limit]))
             number_ensamble_memebers = 1000
             all_imfs = {}
             all_res = []
             for i in range(number_ensamble_memebers):
-                imf, res = self.get_imfs(self.add_noise(noise_width))
+                imf, res = self.get_imfs(self.add_noise(noise_width), upper_limit)
                 for j in range(imf.shape[1]):
                     if j in all_imfs:
                         all_imfs[j].append(np.insert(imf[:, j], 0, i))
@@ -56,32 +70,42 @@ class MEEMDGMDH:
         res_median = [nup]
         return imfs_medians, res_median
 
-    def gmdh(self, train_x, train_y, fitness_fn, split):
-        print(train_x.shape, train_y.shape)
-        model = GMDH(train_x,train_y,err_fn=fitness_fn, split_train_select=split)
-        model.train()
+    def gmdh_train(self, train_x, train_y,
+                   fitness_fn: tuple[tuple[Callable]] | list[tuple[Callable]] =
+                   ((utils.poly, lambda x: x),
+                    (utils.sigmoid, utils.inverse_sigmoid),
+                    (utils.hyperbolic_tangent,utils.inverse_hyperbolic_tangent),
+                    (utils.radial_basis, utils.inverse_radial_basis)),
+                   err_function: Callable = mean_square_error,
+                   split: float = 0.75):
+        # print(train_x.shape, train_y.shape)
+        model = utils.GMDHSlim(transfer_functions=fitness_fn,
+                               error_function=err_function,
+                               train_select_split=split)
+        model.construct_GMDH(train_x, train_y, stop_leniency=3)
         return model
-        #return indexs, coefficients
 
-    def train(self, split: float = 0.5,) -> None:
+    def train_sets(self, splits: tuple[float, float, float] = 0.75,) -> None:
         """
         Calculates the imfs for the ensambles and trains the corresponding models
 
-        :param split: ratio between train and selection set
+        :param splits: ratio between train and selection set
         :return: None
         """
         self.models_imfs = []
-        imfs, res = self.create_ensamble_imfs()
-        medians_imfs, median_res = self.create_median(imfs,res)
+        #train and selection
+        imfs_train, res_train = self.create_median(*self.create_ensamble_imfs(use_split=splits[0]))
+        imfs_select, res_select = self.create_median(*self.create_ensamble_imfs(use_split=splits[1]))
+        imfs_test, res_test = self.create_median(*self.create_ensamble_imfs(use_split=splits[2]))
+        #medians_imfs, median_res = self.create_median(imfs, res)
         for imf in medians_imfs:
             print("place_holder")
             dloader = DataLoader(imf)
             train_split, val_split = dloader.window_split_train_val_x_y(window_size=7)
-            self.models[imf] = self.gmdh(*train_split, mean_square_error, split)
+            self.models[imf] = self.gmdh_train(*train_split, err_function = mean_square_error, split = split)
         dloader = DataLoader(res)
         train_split, val_split = dloader.window_split_train_val_x_y(window_size=7)
-        self.model_res = self.gmdh(*train_split, mean_square_error, split)
-
+        self.model_res = self.gmdh_test(*train_split, mean_square_error, split)
 
     def test(self, inputs=None):
         if inputs is None:
@@ -170,8 +194,9 @@ if __name__ == '__main__':
         plt.show()
         matrix = np.lib.stride_tricks.sliding_window_view(sig, window_shape=7)
         gmdh = utils.GMDHSlim([(utils.poly, lambda x: x),
-                               (utils.sigmoid, utils.inverse_sigmoid)],)
-                               #(utils.radial_basis, utils.inverse_radial_basis)],)
+                               (utils.sigmoid, utils.inverse_sigmoid),
+                               (utils.radial_basis, utils.inverse_radial_basis),
+                               ],)
         gmdh.construct_GMDH(matrix[:, :-1], matrix[:, -1], 3)
 
     if TEST == 10:
@@ -181,6 +206,9 @@ if __name__ == '__main__':
         plt.plot(range(len(s)), s)
         plt.show()
         gmdh = utils.GMDHSlim([(utils.poly, lambda x: x),
-                               (utils.sigmoid, utils.inverse_sigmoid)], )
+                               (utils.sigmoid, utils.inverse_sigmoid),
+                               (utils.hyperbolic_tangent,utils.inverse_hyperbolic_tangent),
+                               (utils.radial_basis, utils.inverse_radial_basis)
+                               ], )
         # (utils.radial_basis, utils.inverse_radial_basis)],)
         gmdh.construct_GMDH(matrix[:, :-1], matrix[:, -1], 3)

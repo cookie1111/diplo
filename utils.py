@@ -647,7 +647,7 @@ class GMDHSlim:
                                                self.max_layer_size))
             cur_best_neur = self.layers[-1].train_layer(X, y)
             X = self.layers[-1].forward(X)
-            print(X)
+            #print(X)
             print(f"Layer {i} trained")
 
             if cost > cur_best_neur[0]:
@@ -663,6 +663,11 @@ class GMDHSlim:
                     break
             i = i + 1
 
+    def evaluate(self, X):
+        for i in self.layers:
+            X = i.forward(X)
+
+        return X
 
 class MatrixGMDHLayer:
     """
