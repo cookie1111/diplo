@@ -40,7 +40,8 @@ class MEEMDGMDH:
         :param noise_amp: amplitude of the added gaussian noise
         :param use_split: add the upper limit -> whole set == 1, 0.5 means the upper limit is at hald of the set
         :param cut_off: starting position for the imfs(for example if its a select set this mean that we don't want to
-        include the training part in the select)
+        include the training part in the set) -> calculate the imfs based on whole hsitory but return only from this
+        point onwards
         :return: imfs + res
         """
         if procs > 1:
@@ -111,7 +112,7 @@ class MEEMDGMDH:
         )
         print(f"Train:{imfs_train[0].shape}, Select:{imfs_select[0].shape}, Test:{imfs_test[0].shape}")
 
-        for imf in zip(imfs_train, imfs_select, imfs_test):
+        for i, imf in enumerate(zip(imfs_train, imfs_select, imfs_test)):
             print("place_holder")
             dloader_train = DataLoader(imf[0])
             dloader_select = DataLoader(imf[1])
@@ -122,7 +123,7 @@ class MEEMDGMDH:
 
             print(f"{train_split[0].shape} , {train_split[1].shape}")
             print(f"{select_split[0].shape} , {select_split[1].shape}")
-            self.models[imf] = self.gmdh_train(*train_split, *select_split,
+            self.models[i] = self.gmdh_train(*train_split, *select_split,
                                                fitness_fn=fitness_fns,
                                                err_function=mean_square_error)
         dloader_train = DataLoader(res_train)
@@ -145,13 +146,27 @@ class MEEMDGMDH:
         pass
         # TODO implement the following steps:
         # calculate imfs on the whole historical context
+        self.timeseries = whole_ts[:start_index]
+        #just get the last <window_size> part of the imfs and res because we will be predicting only new poitns.
+        imfs, res = self.create_median(*self.create_ensamble_imfs(use_split=1, cut_off=-(self.window_size-1)))
 
-        # set up the dataloaders
+        prediction = self.predict_based_on_imf_res(imfs, res, no_steps_to_predict)
 
-        # run the models for each individual IMF
-
+    def predict_based_on_imf_res(self, imfs, res, no_steps_predict:int = 10):
+        # predict no_steps_to_predict ahead
+        for i, imf in enumerate(imfs):
+            for step in range(no_steps_predict):
+                X = imf[-(self.window_size - 1):]
+                imf.append(self.models[i].evaluate(np.expand_dims(X, 0)))
+            imfs[i] = imf
+        for step in range(no_steps_predict):
+            X = res[-(self.window_size - 1):]
+            res.append(self.model_res.evaluate(np.expand_dims(X, 0)))
         # sum the models
-
+        sum_all = imfs[0]
+        for imf in imfs:
+            sum_all = sum_all + imf
+        return sum_all + res
 
 if __name__ == '__main__':
     df = pd.read_csv("snp500.csv")

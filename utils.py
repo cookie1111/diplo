@@ -556,7 +556,7 @@ class DataLoader:
         return (train_x, train_y), (select_x, select_y), (val_x, val_y)
 
 def printProgressBar(iteration, total, prefix = '', suffix = '', decimals = 1, length = 100,
-                     fill = '█', printEnd = '\r'):
+                     fill = '█', printEnd = ''):
     percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
     filledLength = int(length * iteration // total)
     bar = fill * filledLength + '-' * (length - filledLength)
@@ -676,6 +676,7 @@ class GMDHSlim:
             i = i + 1
 
     def evaluate(self, X):
+        print(X.shape)
         for i in self.layers:
             X = i.forward(X)
 
@@ -774,7 +775,7 @@ class MatrixGMDHLayer:
         #y = transfer_fn[0](None, y, False)
         printProgressBar(0, overall, prefix=transfer_fn[0].__name__, suffix=str(overall))
         for cntr, i in enumerate(comb(range(X_train.shape[1]), 2)):
-            printProgressBar(cntr, overall, prefix=transfer_fn[0].__name__, suffix=str(overall))
+            printProgressBar(cntr+1, overall, prefix=transfer_fn[0].__name__, suffix=str(overall))
             train_matrix_x = np.array([X_train[:, i[0]], X_train[:, i[1]]])
             test_matrix_x = np.array([X_select[:, i[0]], X_select[:, i[1]]])
 
@@ -837,11 +838,12 @@ class MatrixGMDHLayer:
 
     def forward(self, X: np.ndarray) -> np.ndarray:
         """
-        does a forward pass fo the network
+        does a forward pass of the network
 
         :param X: input variables from previous layer
         :return:
         """
+        #print(X.shape)
         res = []
         for i in self.layer:
             if i[1][1] == -1:
