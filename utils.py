@@ -4,6 +4,7 @@ import concurrent.futures as ft
 from typing import Callable, Union
 from math import floor
 from random import sample
+import dill
 import warnings
 #warnings.filterwarnings("error")
 

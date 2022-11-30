@@ -10,7 +10,8 @@ import utils
 from time import process_time_ns
 from math import floor
 from typing import Callable
-import pickle as pkl
+#import pickle as pkl
+import dill as pkl
 
 
 TEST = 11
@@ -132,10 +133,10 @@ class MEEMDGMDH:
 
         for i, imf in enumerate(zip(imfs_train, imfs_select)): #imfs_test)):
             if i < len(self.models):
-                print(f"{i} model has already been trained and saved, skipping")
+                print(f"{i+1} model has already been trained and saved, skipping")
                 continue
 
-            print(f"Training on {i} imf:")
+            print(f"Training on {i+1} imf:")
             dloader_train = DataLoader(imf[0])
             dloader_select = DataLoader(imf[1])
             # dloader_test = DataLoader(imf[2])
