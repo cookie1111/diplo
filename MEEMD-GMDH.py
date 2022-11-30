@@ -1,4 +1,6 @@
 # implemented based off https://downloads.hindawi.com/journals/mpe/2021/5589717.pdf
+import os.path
+
 from emd import sift
 import numpy as np
 import pandas as pd
@@ -8,6 +10,7 @@ import utils
 from time import process_time_ns
 from math import floor
 from typing import Callable
+import pickle as pkl
 
 
 TEST = 11
@@ -94,7 +97,8 @@ class MEEMDGMDH:
 
     # DONE
     def train_sets(self, fitness_fns, splits: tuple[float, float, float] = (0.75 * 0.8, 0.8, 1),
-                   window_size: int = 30, predict_steps: int = 10) -> None:
+                   window_size: int = 30, predict_steps: int = 10, imfs_save: str = "imfs.pickle",
+                   models_save: str = "models.pickle") -> None:
         """
         Calculates the imfs for the ensambles and trains the corresponding models
 
@@ -102,20 +106,36 @@ class MEEMDGMDH:
         :return: None
         """
         self.window_size = window_size
-        self.models_imfs = []
+        self.models = []
+        imfs_and_res = {}
         #train and selection
-        imfs_train, res_train = self.create_median(*self.create_ensamble_imfs(use_split=splits[0]))
+        if os.path.exists(imfs_save):
+            with open(imfs_save, 'rb') as f:
+                imfs_and_res = pkl.load(f)
+                imfs_train, res_train = imfs_and_res["train"]
+                imfs_select, res_select = imfs_and_res["select"]
+        else:
+            imfs_and_res['train'] = imfs_train, res_train = self.create_median(
+                *self.create_ensamble_imfs(use_split=splits[0]))
 
-        imfs_select, res_select = self.create_median(
-            *self.create_ensamble_imfs(use_split=splits[1], cut_off=floor(len(self.timeseries) * splits[0]))
-        )
+            imfs_and_res['select'] = imfs_select, res_select = self.create_median(
+                *self.create_ensamble_imfs(use_split=splits[1], cut_off=floor(len(self.timeseries) * splits[0])))
+            with open(imfs_save, 'wb') as f:
+                pkl.dump(imfs_and_res, f)
+        del imfs_and_res
+        if os.path.exists(models_save):
+            with open(models_save, 'rb') as f:
+                self.models, self.model_res = pkl.load(f)
+
+
         # cut out only the relevant part
-        #imfs_test, res_test = self.create_median(
-        #    *self.create_ensamble_imfs(use_split=splits[2], cut_off=floor(len(self.timeseries) * splits[1]))
-        #)
-        #print(f"Train:{imfs_train[0].shape}, Select:{imfs_select[0].shape},") #Test:{imfs_test[0].shape}")
 
         for i, imf in enumerate(zip(imfs_train, imfs_select)): #imfs_test)):
+            if i < len(self.models):
+                print(f"{i} model has already been trained and saved, skipping")
+                continue
+
+            print(f"Training on {i} imf:")
             dloader_train = DataLoader(imf[0])
             dloader_select = DataLoader(imf[1])
             # dloader_test = DataLoader(imf[2])
@@ -125,15 +145,24 @@ class MEEMDGMDH:
 
             #print(f"{train_split[0].shape} , {train_split[1].shape}")
             #print(f"{select_split[0].shape} , {select_split[1].shape}")
-            self.models_imfs.append(self.gmdh_train(*train_split, *select_split,
+            self.models.append(self.gmdh_train(*train_split, *select_split,
                                                fitness_fn=fitness_fns,
                                                err_function=mean_square_error))
-        dloader_train = DataLoader(res_train)
-        dloader_select = DataLoader(res_select)
-        # dloader_test = DataLoader(res_test)
-        train_split = dloader_train.window_split_x_y(window_size=window_size)
-        select_split = dloader_select.window_split_x_y(window_size=window_size)
-        self.model_res = self.gmdh_train(*train_split, *select_split, mean_square_error)
+            with open(models_save, 'wb') as f:
+                pkl.dump((self.models, None), f)
+
+        if not self.model_res:
+            dloader_train = DataLoader(res_train)
+            dloader_select = DataLoader(res_select)
+            # dloader_test = DataLoader(res_test)
+            train_split = dloader_train.window_split_x_y(window_size=window_size)
+            select_split = dloader_select.window_split_x_y(window_size=window_size)
+            self.model_res = self.gmdh_train(*train_split, *select_split, mean_square_error)
+
+            with open(models_save, 'wb') as f:
+                pkl.dump((self.models, self.model_res), f)
+        else:
+            print("Model on res already trained")
 
         # we need start of the test set and then move it forward by 10 each time and predicting it
         test_set_length = len(self.timeseries)
