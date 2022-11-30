@@ -15,11 +15,13 @@ TEST = 11
 
 class MEEMDGMDH:
 
-    def __init__(self, ts: np.ndarray) -> None:
+    def __init__(self, ts: np.ndarray, max_layer_size: int,  file_name: str) -> None:
         self.timeseries = ts
         self.models = None
         self.model_res = None
         self.window_size = 0
+        self.max_layer_size = max_layer_size
+        self.file_name = file_name
 
     def add_noise(self, noise_amp):
         return self.timeseries + np.random.normal(0, noise_amp, len(self.timeseries))
@@ -85,13 +87,14 @@ class MEEMDGMDH:
         # print(train_x.shape, train_y.shape)
         model = utils.GMDHSlim(transfer_functions=fitness_fn,
                                error_function=err_function,
-                               train_select_split=split)
+                               train_select_split=split,
+                               max_layer_size=self.max_layer_size)
         model.construct_GMDH(train_x, train_y, select_x, select_y, stop_leniency=3)
         return model
 
     # DONE
     def train_sets(self, fitness_fns, splits: tuple[float, float, float] = (0.75 * 0.8, 0.8, 1),
-                   window_size: int = 7) -> None:
+                   window_size: int = 30, predict_steps: int = 10) -> None:
         """
         Calculates the imfs for the ensambles and trains the corresponding models
 
@@ -107,52 +110,64 @@ class MEEMDGMDH:
             *self.create_ensamble_imfs(use_split=splits[1], cut_off=floor(len(self.timeseries) * splits[0]))
         )
         # cut out only the relevant part
-        imfs_test, res_test = self.create_median(
-            *self.create_ensamble_imfs(use_split=splits[2], cut_off=floor(len(self.timeseries) * splits[1]))
-        )
-        print(f"Train:{imfs_train[0].shape}, Select:{imfs_select[0].shape}, Test:{imfs_test[0].shape}")
+        #imfs_test, res_test = self.create_median(
+        #    *self.create_ensamble_imfs(use_split=splits[2], cut_off=floor(len(self.timeseries) * splits[1]))
+        #)
+        #print(f"Train:{imfs_train[0].shape}, Select:{imfs_select[0].shape},") #Test:{imfs_test[0].shape}")
 
-        for i, imf in enumerate(zip(imfs_train, imfs_select, imfs_test)):
-            print("place_holder")
+        for i, imf in enumerate(zip(imfs_train, imfs_select)): #imfs_test)):
             dloader_train = DataLoader(imf[0])
             dloader_select = DataLoader(imf[1])
-            dloader_test = DataLoader(imf[2])
+            # dloader_test = DataLoader(imf[2])
 
             train_split = dloader_train.window_split_x_y(window_size=window_size)
             select_split = dloader_select.window_split_x_y(window_size=window_size)
 
-            print(f"{train_split[0].shape} , {train_split[1].shape}")
-            print(f"{select_split[0].shape} , {select_split[1].shape}")
-            self.models[i] = self.gmdh_train(*train_split, *select_split,
+            #print(f"{train_split[0].shape} , {train_split[1].shape}")
+            #print(f"{select_split[0].shape} , {select_split[1].shape}")
+            self.models_imfs.append(self.gmdh_train(*train_split, *select_split,
                                                fitness_fn=fitness_fns,
-                                               err_function=mean_square_error)
+                                               err_function=mean_square_error))
         dloader_train = DataLoader(res_train)
         dloader_select = DataLoader(res_select)
-        dloader_test = DataLoader(res_test)
+        # dloader_test = DataLoader(res_test)
         train_split = dloader_train.window_split_x_y(window_size=window_size)
         select_split = dloader_select.window_split_x_y(window_size=window_size)
         self.model_res = self.gmdh_train(*train_split, *select_split, mean_square_error)
-        # TODO Need to add the test part.
 
-    def eval(self, whole_ts: np.ndarray, start_index: int, end_index: int, no_steps_to_predict: int = 10):
+        # we need start of the test set and then move it forward by 10 each time and predicting it
+        test_set_length = len(self.timeseries)
+        error = []
+        for i in range(test_set_length*splits[1], test_set_length, predict_steps):
+            error.append(self.eval(self.timeseries, i, predict_steps, y=self.timeseries[i: i+predict_steps]))
+        return error
+
+
+    def eval(self, whole_ts: np.ndarray, start_index: int, no_steps_to_predict: int = 10,
+             y: np.ndarray = None) -> np.ndarray | float:
         """
         Predict
         Make sure that time series is of the maximum length possible
 
         :param whole_ts: the whole history of the timeseries available
         :param start_index: start of slice of time series that we wish to predict
-        :param end_index: end of slice of time series that we wish to predict
+        :param no_steps_to_predict: have many steps ahead to predict
+        :param y: if added it is used to calculate the mean square error make sure that y is the length of
+        no_steps_to_predict
+        :return: returns the predicted result or if y was given the mean square error
         """
-        pass
         # TODO implement the following steps:
         # calculate imfs on the whole historical context
         self.timeseries = whole_ts[:start_index]
-        #just get the last <window_size> part of the imfs and res because we will be predicting only new poitns.
+        # just get the last <window_size> part of the imfs and res because we will be predicting only new poitns.
         imfs, res = self.create_median(*self.create_ensamble_imfs(use_split=1, cut_off=-(self.window_size-1)))
 
         prediction = self.predict_based_on_imf_res(imfs, res, no_steps_to_predict)
+        if y:
+            return utils.mean_square_error(prediction[:len(y)], y)
+        return prediction
 
-    def predict_based_on_imf_res(self, imfs, res, no_steps_predict:int = 10):
+    def predict_based_on_imf_res(self, imfs, res, no_steps_predict: int = 10):
         # predict no_steps_to_predict ahead
         for i, imf in enumerate(imfs):
             for step in range(no_steps_predict):
@@ -199,7 +214,7 @@ if __name__ == '__main__':
         print(dl.window_split_x_y())
         print(dl.window_split_train_select_val_x_y())
     if TEST == 5:
-        end_model = MEEMDGMDH(s)
+        end_model = MEEMDGMDH(s, "test1.pkl")
         end_model.train()
 
     if TEST == 6:
@@ -271,11 +286,12 @@ if __name__ == '__main__':
 
     if TEST == 11:
         s = utils.normalize_ts(s, 0.8)
-        meme = MEEMDGMDH(s)
+        meme = MEEMDGMDH(s, 16,"MEEMD-GMDH_test2.pkl")
         meme.train_sets([(utils.poly, lambda x: x),
                          (utils.sigmoid, utils.inverse_sigmoid),
                          (utils.hyperbolic_tangent, utils.inverse_hyperbolic_tangent),
                          (utils.radial_basis, utils.inverse_radial_basis)
                          ],
+                        window_size=16
                         )
 
