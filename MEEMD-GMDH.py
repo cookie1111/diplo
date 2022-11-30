@@ -159,7 +159,8 @@ class MEEMDGMDH:
             # dloader_test = DataLoader(res_test)
             train_split = dloader_train.window_split_x_y(window_size=window_size)
             select_split = dloader_select.window_split_x_y(window_size=window_size)
-            self.model_res = self.gmdh_train(*train_split, *select_split, fitness_fn=fitness_fns, err_function=mean_square_error)
+            self.model_res = self.gmdh_train(*train_split, *select_split, fitness_fn=fitness_fns,
+                                             err_function=mean_square_error)
 
             with open(models_save, 'wb') as f:
                 pkl.dump((self.models, self.model_res), f)
@@ -169,7 +170,7 @@ class MEEMDGMDH:
         # we need start of the test set and then move it forward by 10 each time and predicting it
         test_set_length = len(self.timeseries)
         error = []
-        for i in range(test_set_length*splits[1], test_set_length, predict_steps):
+        for i in range(int(floor(test_set_length*splits[1])), test_set_length, predict_steps):
             error.append(self.eval(self.timeseries, i, predict_steps, y=self.timeseries[i: i+predict_steps]))
         return error
 
@@ -202,12 +203,17 @@ class MEEMDGMDH:
         # predict no_steps_to_predict ahead
         for i, imf in enumerate(imfs):
             for step in range(no_steps_predict):
+                print(imf.shape)
                 X = imf[-(self.window_size - 1):]
-                imf.append(self.models[i].evaluate(np.expand_dims(X, 0)))
+                result = self.models[i].evaluate(np.expand_dims(X, 0))
+                #print("hello ", result.shape)
+                imf = np.concatenate((imf, np.squeeze(result, axis=-1)), axis=-1)
+                #imf.append(self.models[i].evaluate(np.expand_dims(X, 0)))
             imfs[i] = imf
         for step in range(no_steps_predict):
             X = res[-(self.window_size - 1):]
-            res.append(self.model_res.evaluate(np.expand_dims(X, 0)))
+            result = self.model_res.evaluate(np.expand_dims(X, 0))
+            res = np.concatenate((res, np.squeeze(result, axis=-1)), axis=0)
         # sum the models
         sum_all = imfs[0]
         for imf in imfs:
@@ -317,7 +323,7 @@ if __name__ == '__main__':
 
     if TEST == 11:
         s = utils.normalize_ts(s, 0.8)
-        meme = MEEMDGMDH(s, 16,"MEEMD-GMDH_test2.pkl")
+        meme = MEEMDGMDH(s, 16, "MEEMD-GMDH_test2.pkl")
         meme.train_sets([(utils.poly, lambda x: x),
                          (utils.sigmoid, utils.inverse_sigmoid),
                          (utils.hyperbolic_tangent, utils.inverse_hyperbolic_tangent),

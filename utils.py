@@ -677,10 +677,10 @@ class GMDHSlim:
             i = i + 1
 
     def evaluate(self, X):
-        print(X.shape)
+        #print(X.shape)
         for i in self.layers:
             X = i.forward(X)
-
+        #print(X)
         return X
 
 class MatrixGMDHLayer:
