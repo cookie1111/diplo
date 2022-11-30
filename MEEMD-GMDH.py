@@ -153,12 +153,13 @@ class MEEMDGMDH:
                 pkl.dump((self.models, None), f)
 
         if not self.model_res:
-            dloader_train = DataLoader(res_train)
-            dloader_select = DataLoader(res_select)
+            print(res_train, res_select)
+            dloader_train = DataLoader(res_train[0])
+            dloader_select = DataLoader(res_select[0])
             # dloader_test = DataLoader(res_test)
             train_split = dloader_train.window_split_x_y(window_size=window_size)
             select_split = dloader_select.window_split_x_y(window_size=window_size)
-            self.model_res = self.gmdh_train(*train_split, *select_split, mean_square_error)
+            self.model_res = self.gmdh_train(*train_split, *select_split, fitness_fn=fitness_fns, err_function=mean_square_error)
 
             with open(models_save, 'wb') as f:
                 pkl.dump((self.models, self.model_res), f)
