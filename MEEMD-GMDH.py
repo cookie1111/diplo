@@ -323,12 +323,13 @@ if __name__ == '__main__':
 
     if TEST == 11:
         s = utils.normalize_ts(s, 0.8)
-        meme = MEEMDGMDH(s, 16, "MEEMD-GMDH_test2.pkl")
+        meme = MEEMDGMDH(s, 64, "MEEMD-GMDH_test64.pkl")
         meme.train_sets([(utils.poly, lambda x: x),
                          (utils.sigmoid, utils.inverse_sigmoid),
                          (utils.hyperbolic_tangent, utils.inverse_hyperbolic_tangent),
                          (utils.radial_basis, utils.inverse_radial_basis)
                          ],
-                        window_size=16
+                        window_size=10,
+                        models_save="64model.pickle",
                         )
 
