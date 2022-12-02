@@ -14,8 +14,7 @@ from typing import Callable
 import dill as pkl
 
 
-TEST = 11
-
+TEST = 12
 
 class MEEMDGMDH:
 
@@ -37,23 +36,28 @@ class MEEMDGMDH:
         return imfs, res
 
     def create_ensamble_imfs(self, procs: int = 1, noise_amp: float = 0.05,
-                             use_split: float = 0.75, cut_off: int = 0) -> tuple[list[np.ndarray], np.ndarray]:
+                             use_split: float | int = 0.75, cut_off: int = 0) -> tuple[dict[int, list[np.ndarray]],
+                                                                                 list[np.ndarray]]:
         """
         Calculate imfs for the given timeseries, and correct set(train/select/val) for each set the same start is
         used, just the cut-off point changes
 
         :param procs: amount of processes used CURRENTLY NOT IMPLEMENTED
         :param noise_amp: amplitude of the added gaussian noise
-        :param use_split: add the upper limit -> whole set == 1, 0.5 means the upper limit is at hald of the set
+        :param use_split: add the upper limit -> whole set == 1, 0.5 means the upper limit is at half of the set, can
+        also pass the upper limit directly as an index(the limit itself is not included)
         :param cut_off: starting position for the imfs(for example if its a select set this mean that we don't want to
-        include the training part in the set) -> calculate the imfs based on whole hsitory but return only from this
+        include the training part in the set) -> calculate the imfs based on whole history but return only from this
         point onwards
         :return: imfs + res
         """
         if procs > 1:
             pass
         else:
-            upper_limit = floor(len(self.timeseries)*use_split)
+            if type(use_split) is float:
+                upper_limit = floor(len(self.timeseries)*use_split)
+            elif type(use_split) is int:
+                upper_limit = use_split
             noise_width = noise_amp * np.abs(np.max(self.timeseries[:upper_limit]) - np.min(self.timeseries[
                                                                                             :upper_limit]))
             number_ensamble_memebers = 1000
@@ -323,7 +327,7 @@ if __name__ == '__main__':
 
     if TEST == 11:
         s = utils.normalize_ts(s, 0.8)
-        meme = MEEMDGMDH(s, 64, "MEEMD-GMDH_test64.pkl")
+        meme = MEEMDGMDH(s, 64, "MEEMD-GMDH_test64.pickle")
         meme.train_sets([(utils.poly, lambda x: x),
                          (utils.sigmoid, utils.inverse_sigmoid),
                          (utils.hyperbolic_tangent, utils.inverse_hyperbolic_tangent),
@@ -332,4 +336,32 @@ if __name__ == '__main__':
                         window_size=10,
                         models_save="64model.pickle",
                         )
+    if TEST == 12:
+        # Comparing how different IMF is if we calculate it for longer periods and where the difference gets out of hand
+        statistical_differences = {}
+        comparative = [1, 7, 30, 60, 120, 180, 240]
+        si = np.sin(0.1 * np.array(list(range(10000)))) * 10
+        ts = np.random.uniform(-1, 1, size=(10000,))
+        sig = si + ts
+        s = utils.normalize_ts(sig,0.8)
+        meme = MEEMDGMDH(s, 8, "testing_imfs.pickle")
+        upper_limit = floor(len(s)*0.8)
+        base = meme.create_median(*meme.create_ensamble_imfs(use_split=upper_limit))
+        base_dict = {"diff": 0}
+        for i in range(9):
+            base_dict[i] = 0
+        base_dict["res"] = 0
+        df = pd.DataFrame(base_dict, index=[0])
+        for i in comparative:
+            # check diff between the individual IMFS
+            # change split ratio to reflect the different length of the
+            compared = meme.create_median(*meme.create_ensamble_imfs(use_split=upper_limit+i))
+            statistical_differences[i] = {}
+            statistical_differences[i]["diff"] = i
+            for it, imf in enumerate(zip(base[0], compared[0])):
+                statistical_differences[i][it] = utils.mean_square_error(imf[0], imf[1][:upper_limit+1])
+                print(f"")
+            statistical_differences[i]["res"] = utils.mean_square_error(base[1], compared[1][:upper_limit+1])
+            df = pd.concat((df, pd.DataFrame(statistical_differences, index=[0])), ignore_index=True)
+            print(df)
 
