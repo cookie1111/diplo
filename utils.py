@@ -846,16 +846,20 @@ class MatrixGMDHLayer:
         """
         #print(X.shape)
         res = []
-        for i in self.layer:
-            if i[1][1] == -1:
-                res.append(X[:, i[1][0]])
-            else:
-                # use the neurons transfer function for the inputs
-                x1 = i[3][0](None, X[:, i[1][0]], False)
-                x2 = i[3][0](None, X[:, i[1][1]], False)
-                y = poly(i[2], np.array([x1, x2]))
-                res.append(y)
-        res = np.array(res)
+        n_layers = len(self.layer)
+        try:
+            for j, i in enumerate(self.layer):
+                if i[1][1] == -1:
+                    res.append(X[:, i[1][0]])
+                else:
+                    # use the neurons transfer function for the inputs
+                    x1 = i[3][0](None, X[:, i[1][0]], False)
+                    x2 = i[3][0](None, X[:, i[1][1]], False)
+                    y = poly(i[2], np.array([x1, x2]))
+                    res.append(y)
+            res = np.array(res)
+        except IndexError as e:
+            print(self.layer)
         return res.T
 
     def reduce_to_output(self):

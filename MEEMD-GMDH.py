@@ -15,9 +15,8 @@ from typing import Callable
 import dill as pkl
 
 
+TEST = 13
 
-
-TEST = 12
 
 class MEEMDGMDH:
 
@@ -33,6 +32,7 @@ class MEEMDGMDH:
         return self.timeseries + np.random.normal(0, noise_amp, len(self.timeseries))
 
     def get_imfs(self, timeseries, upper_limit, cut_off = 0, amount_of_imfs: int = 9):
+        #print(f"{timeseries.shape},{upper_limit}")
         s = sift.sift(timeseries[:upper_limit], max_imfs=amount_of_imfs)
         #print(s.shape)
         imfs = np.array(s[cut_off:, :])
@@ -58,10 +58,12 @@ class MEEMDGMDH:
         if procs > 1:
             pass
         else:
+
             if type(use_split) is float:
                 upper_limit = floor(len(self.timeseries)*use_split)
             elif type(use_split) is int:
                 upper_limit = use_split
+            #print(f"{upper_limit}")
             noise_width = noise_amp * np.abs(np.max(self.timeseries[:upper_limit]) - np.min(self.timeseries[
                                                                                             :upper_limit]))
             number_ensamble_memebers = 1000
@@ -97,19 +99,20 @@ class MEEMDGMDH:
                     (utils.hyperbolic_tangent,utils.inverse_hyperbolic_tangent),
                     (utils.radial_basis, utils.inverse_radial_basis)),
                    err_function: Callable = mean_square_error,
-                   split: float = 0.75):
+                   split: float = 0.75,
+                   stop_leniency: int = 1):
         # print(train_x.shape, train_y.shape)
         model = utils.GMDHSlim(transfer_functions=fitness_fn,
                                error_function=err_function,
                                train_select_split=split,
                                max_layer_size=self.max_layer_size)
-        model.construct_GMDH(train_x, train_y, select_x, select_y, stop_leniency=3)
+        model.construct_GMDH(train_x, train_y, select_x, select_y, stop_leniency=stop_leniency)
         return model
 
     # DONE
-    def train_sets(self, fitness_fns, splits: tuple[float, float, float] = (0.75 * 0.8, 0.8, 1),
-                   window_size: int = 30, predict_steps: int = 10, imfs_save: str = "imfs.pickle",
-                   models_save: str = "models.pickle") -> None:
+    def train_sets(self, fitness_fns: list[Callable], splits: tuple[float, float, float] = (0.75 * 0.8, 0.8, 1),
+                   window_size: int = 30, predict_steps: int = 10, stop_leniency: int = 1,
+                   imfs_save: str = "imfs.pickle", models_save: str = "models.pickle") -> list[float]:
         """
         Calculates the imfs for the ensambles and trains the corresponding models
 
@@ -137,8 +140,6 @@ class MEEMDGMDH:
         if os.path.exists(models_save):
             with open(models_save, 'rb') as f:
                 self.models, self.model_res = pkl.load(f)
-
-
         # cut out only the relevant part
 
         for i, imf in enumerate(zip(imfs_train, imfs_select)): #imfs_test)):
@@ -158,7 +159,8 @@ class MEEMDGMDH:
             #print(f"{select_split[0].shape} , {select_split[1].shape}")
             self.models.append(self.gmdh_train(*train_split, *select_split,
                                                fitness_fn=fitness_fns,
-                                               err_function=mean_square_error))
+                                               err_function=mean_square_error,
+                                               stop_leniency=stop_leniency))
             with open(models_save, 'wb') as f:
                 pkl.dump((self.models, None), f)
 
@@ -170,23 +172,29 @@ class MEEMDGMDH:
             train_split = dloader_train.window_split_x_y(window_size=window_size)
             select_split = dloader_select.window_split_x_y(window_size=window_size)
             self.model_res = self.gmdh_train(*train_split, *select_split, fitness_fn=fitness_fns,
-                                             err_function=mean_square_error)
+                                             err_function=mean_square_error, stop_leniency=stop_leniency)
 
             with open(models_save, 'wb') as f:
                 pkl.dump((self.models, self.model_res), f)
         else:
             print("Model on res already trained")
 
+        # Turns out that i don't need to recalculate the imfs each time
         # we need start of the test set and then move it forward by 10 each time and predicting it
         test_set_length = len(self.timeseries)
+        plt.figure()
+
         error = []
         for i in range(int(floor(test_set_length*splits[1])), test_set_length, predict_steps):
-            error.append(self.eval(self.timeseries, i, predict_steps, y=self.timeseries[i: i+predict_steps]))
+            evaluation = self.eval(self.timeseries, i, predict_steps, y=self.timeseries[i: i + predict_steps])
+            plt.plot(range(i, i+predict_steps), evaluation[1])
+            error.append(evaluation[0])
+        plt.show()
         return error
 
-
+    # TODO change how many times we calc imfs(don't have to the error is statistically insignificant)
     def eval(self, whole_ts: np.ndarray, start_index: int, no_steps_to_predict: int = 10,
-             y: np.ndarray = None) -> np.ndarray | float:
+             y: np.ndarray = None) -> tuple[float, np.ndarray]:
         """
         Predict
         Make sure that time series is of the maximum length possible
@@ -198,16 +206,16 @@ class MEEMDGMDH:
         no_steps_to_predict
         :return: returns the predicted result or if y was given the mean square error
         """
-        # TODO implement the following steps:
         # calculate imfs on the whole historical context
         self.timeseries = whole_ts[:start_index]
+        #print(f"eval ts size {self.timeseries.shape}")
         # just get the last <window_size> part of the imfs and res because we will be predicting only new poitns.
-        imfs, res = self.create_median(*self.create_ensamble_imfs(use_split=1, cut_off=-(self.window_size-1)))
+        imfs, res = self.create_median(*self.create_ensamble_imfs(use_split=1.0, cut_off=-(self.window_size-1)))
 
         prediction = self.predict_based_on_imf_res(imfs, res, no_steps_to_predict)
         if y:
-            return utils.mean_square_error(prediction[:len(y)], y)
-        return prediction
+            return utils.mean_square_error(prediction[:len(y)], y), prediction
+        return 0, prediction
 
     def predict_based_on_imf_res(self, imfs, res, no_steps_predict: int = 10):
         # predict no_steps_to_predict ahead
@@ -216,9 +224,7 @@ class MEEMDGMDH:
                 print(imf.shape)
                 X = imf[-(self.window_size - 1):]
                 result = self.models[i].evaluate(np.expand_dims(X, 0))
-                #print("hello ", result.shape)
                 imf = np.concatenate((imf, np.squeeze(result, axis=-1)), axis=-1)
-                #imf.append(self.models[i].evaluate(np.expand_dims(X, 0)))
             imfs[i] = imf
         for step in range(no_steps_predict):
             X = res[-(self.window_size - 1):]
@@ -360,7 +366,7 @@ if __name__ == '__main__':
         df = pd.DataFrame(base_dict, index=[0])
         utils.printProgressBar(0, len(comparative))
         for j, i in enumerate(comparative):
-            utils.printProgressBar(1, len(comparative))
+            utils.printProgressBar(j+1, len(comparative))
             # check diff between the individual IMFS
             # change split ratio to reflect the different length of the
             compared = meme.create_median(*meme.create_ensamble_imfs(use_split=upper_limit+i))
@@ -369,11 +375,25 @@ if __name__ == '__main__':
             for it, imf in enumerate(zip(base[0], compared[0])):
                 #print(imf[0].shape, imf[1].shape, upper_limit)
                 statistical_differences[i][it] = utils.mean_square_error(imf[0], imf[1][:upper_limit])
-            print(f"Res: {len(base[1][0])}, {len(compared[1][0])}")
+            #print(f"Res: {len(base[1][0])}, {len(compared[1][0])}")
             statistical_differences[i]["res"] = utils.mean_square_error(base[1][0], compared[1][0][:upper_limit])
             df_inter = pd.DataFrame(statistical_differences[i], index=[i])
-            print(df_inter)
+            #print(df_inter)
             df = pd.concat((df, df_inter), ignore_index=True)
         print(df)
         df.to_csv("statistical_importance.csv")
 
+    if TEST == 13:
+        s = utils.normalize_ts(s, 0.8)
+        meme = MEEMDGMDH(s, 8, "MEEMD-GMDH_test64.pickle")
+        meme.train_sets([(utils.poly, lambda x: x),
+                         (utils.sigmoid, utils.inverse_sigmoid),
+                         #(utils.hyperbolic_tangent, utils.inverse_hyperbolic_tangent),
+                         #(utils.radial_basis, utils.inverse_radial_basis)
+                         ],
+                        splits=(0.8*0.8, 0.8, 1),
+                        window_size=10,
+                        predict_steps=1,
+                        imfs_save="imf_testing.pickle",
+                        models_save="model_testing.pickle",
+                        )
