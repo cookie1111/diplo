@@ -1,6 +1,7 @@
 # implemented based off https://downloads.hindawi.com/journals/mpe/2021/5589717.pdf
 import os.path
-
+import warnings
+warnings.simplefilter(action="ignore", category=FutureWarning)
 from emd import sift
 import numpy as np
 import pandas as pd
@@ -12,6 +13,8 @@ from math import floor
 from typing import Callable
 #import pickle as pkl
 import dill as pkl
+
+
 
 
 TEST = 12
@@ -31,6 +34,7 @@ class MEEMDGMDH:
 
     def get_imfs(self, timeseries, upper_limit, cut_off = 0, amount_of_imfs: int = 9):
         s = sift.sift(timeseries[:upper_limit], max_imfs=amount_of_imfs)
+        #print(s.shape)
         imfs = np.array(s[cut_off:, :])
         res = self.timeseries[cut_off:upper_limit] - np.sum(imfs, axis=-1)
         return imfs, res
@@ -66,12 +70,14 @@ class MEEMDGMDH:
             for i in range(number_ensamble_memebers):
                 imf, res = self.get_imfs(self.add_noise(noise_width), upper_limit, cut_off=cut_off)
                 for j in range(imf.shape[1]):
+                    #print(imf[:,j].shape)
                     if j in all_imfs:
-                        all_imfs[j].append(np.insert(imf[:, j], 0, i))
+                        all_imfs[j].append(imf[:, j])
                     else:
                         all_imfs[j] = []
-                        all_imfs[j].append(np.insert(imf[:, j], 0, i))
+                        all_imfs[j].append(imf[:, j])
                     all_res.append(res)
+                #print(all_imfs[j][0].shape)
             return all_imfs, all_res
 
     def create_median(self, imfs, res):
@@ -339,11 +345,11 @@ if __name__ == '__main__':
     if TEST == 12:
         # Comparing how different IMF is if we calculate it for longer periods and where the difference gets out of hand
         statistical_differences = {}
-        comparative = [1, 7, 30, 60, 120, 180, 240]
-        si = np.sin(0.1 * np.array(list(range(10000)))) * 10
-        ts = np.random.uniform(-1, 1, size=(10000,))
-        sig = si + ts
-        s = utils.normalize_ts(sig,0.8)
+        comparative = [1, 7, 30, 60, 120, 180, 240, 300, 400, 500, 600, 700, 800, 1000, 1200, 1500, 1800]
+        #si = np.sin(0.1 * np.array(list(range(100)))) * 10
+        #ts = np.random.uniform(-1, 1, size=(100,))
+        #sig = si + ts
+        s = utils.normalize_ts(s,0.8)
         meme = MEEMDGMDH(s, 8, "testing_imfs.pickle")
         upper_limit = floor(len(s)*0.8)
         base = meme.create_median(*meme.create_ensamble_imfs(use_split=upper_limit))
@@ -352,16 +358,22 @@ if __name__ == '__main__':
             base_dict[i] = 0
         base_dict["res"] = 0
         df = pd.DataFrame(base_dict, index=[0])
-        for i in comparative:
+        utils.printProgressBar(0, len(comparative))
+        for j, i in enumerate(comparative):
+            utils.printProgressBar(1, len(comparative))
             # check diff between the individual IMFS
             # change split ratio to reflect the different length of the
             compared = meme.create_median(*meme.create_ensamble_imfs(use_split=upper_limit+i))
             statistical_differences[i] = {}
             statistical_differences[i]["diff"] = i
             for it, imf in enumerate(zip(base[0], compared[0])):
-                statistical_differences[i][it] = utils.mean_square_error(imf[0], imf[1][:upper_limit+1])
-                print(f"")
-            statistical_differences[i]["res"] = utils.mean_square_error(base[1], compared[1][:upper_limit+1])
-            df = pd.concat((df, pd.DataFrame(statistical_differences, index=[0])), ignore_index=True)
-            print(df)
+                #print(imf[0].shape, imf[1].shape, upper_limit)
+                statistical_differences[i][it] = utils.mean_square_error(imf[0], imf[1][:upper_limit])
+            print(f"Res: {len(base[1][0])}, {len(compared[1][0])}")
+            statistical_differences[i]["res"] = utils.mean_square_error(base[1][0], compared[1][0][:upper_limit])
+            df_inter = pd.DataFrame(statistical_differences[i], index=[i])
+            print(df_inter)
+            df = pd.concat((df, df_inter), ignore_index=True)
+        print(df)
+        df.to_csv("statistical_importance.csv")
 
