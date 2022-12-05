@@ -188,13 +188,16 @@ class MEEMDGMDH:
         plt.figure()
         imfs, res = self.create_median(*self.create_ensamble_imfs(use_split=1.0,
                                                                   cut_off=-(self.window_size-1)))
-        print(imfs[0].shape,res[0].shape)
+        #print(imfs[0].shape,res[0].shape)
 
         error = []
+        utils.printProgressBar(0,test_set_length -int(floor(test_set_length*splits[1])), prefix="Testing")
         for i in range(int(floor(test_set_length*splits[1])), test_set_length, predict_steps):
             evaluation = self.eval(ts, i, predict_steps, y=ts[i: i + predict_steps],imfs=imfs, res=res )
             plt.plot(range(i, i+predict_steps), evaluation[1][-predict_steps:])
             error.append(evaluation[0])
+            utils.printProgressBar(i+1-int(floor(test_set_length*splits[1])),
+                                   test_set_length-int(floor(test_set_length*splits[1])), prefix="Testing")
         plt.show()
         return error
 
@@ -223,18 +226,18 @@ class MEEMDGMDH:
         else:
 
             for i , imf in enumerate(imfs):
-                print("Pre imf:", imfs[i].shape)
+                #print("Pre imf:", imfs[i].shape)
                 imfs[i] = imf[:start_index]
-                print("Post:", imfs[i].shape)
-            print("Pre res:", res[0].shape)
+                #print("Post:", imfs[i].shape)
+            #print("Pre res:", res[0].shape)
             res[0] = res[0][:start_index]
-            print("Post:", res[0].shape)
+            #print("Post:", res[0].shape)
         # something is going wrong... with the sizes of imfs and res
         prediction = self.predict_based_on_imf_res(imfs, res, no_steps_to_predict)
-        print("Done predicting:",imfs[0].shape, res[0].shape)
+        #print("Done predicting:",imfs[0].shape, res[0].shape)
         #print(prediction)
         if y is not None:
-            print("To compare with:", y)
+            #print("To compare with:", y)
             return utils.mean_square_error(prediction[:len(y)], y), prediction
         return 0, prediction
 
@@ -253,17 +256,17 @@ class MEEMDGMDH:
             for step in range(no_steps_predict):
                 #print(imf.shape)
                 X = imf[-(self.window_size - 1):]
-                print("Imf shape:", X.shape, imf.shape)
+                #print("Imf shape:", X.shape, imf.shape)
                 result = self.models[i].evaluate(np.expand_dims(X, 0))
                 c = np.concatenate((imf, np.squeeze(result, axis=-1)), axis=-1)
             local_imfs.append(c)
-            print(len(c))
+            #print(len(c))
         res = res[0]
         for step in range(no_steps_predict):
             X = res[-(self.window_size - 1):]
-            print("Res shape:", X.shape, res.shape)
+            #print("Res shape:", X.shape, res.shape)
             result = self.model_res.evaluate(np.expand_dims(X, 0))
-            print(result.shape)
+            #print(result.shape)
             try:
                 res = np.concatenate((res, np.squeeze(result, axis=-1)), axis=0)
             except ValueError as e:
@@ -271,7 +274,7 @@ class MEEMDGMDH:
                 return None
 
         # sum the models
-        print(imfs,res)
+        #print(imfs,res)
         sum_all = local_imfs[0]
         for imf in local_imfs[1:]:
             sum_all = sum_all + imf
