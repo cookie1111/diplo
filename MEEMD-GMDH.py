@@ -90,6 +90,8 @@ class MEEMDGMDH:
             imfs_medians.append(nup)
         nup = np.median(np.array(res), axis=0)
         res_median = [nup]
+        #print(f"Shape of when calculating median {res_median[0].shape}, {imfs_medians[0].shape} ")
+        # shape the same
         return imfs_medians, res_median
 
     def gmdh_train(self, train_x, train_y, select_x, select_y,
@@ -184,22 +186,21 @@ class MEEMDGMDH:
         test_set_length = len(self.timeseries)
         ts = self.timeseries
         plt.figure()
+        imfs, res = self.create_median(*self.create_ensamble_imfs(use_split=1.0,
+                                                                  cut_off=-(self.window_size-1)))
+        print(imfs[0].shape,res[0].shape)
 
         error = []
         for i in range(int(floor(test_set_length*splits[1])), test_set_length, predict_steps):
-            print("Printamo:", i, i+predict_steps,)
-            print(ts[int(floor(test_set_length * splits[1])):])
-
-            print(ts.iloc[i: i + predict_steps], "len: ", test_set_length)
-            evaluation = self.eval(ts, i, predict_steps, y=ts[i: i + predict_steps])
+            evaluation = self.eval(ts, i, predict_steps, y=ts[i: i + predict_steps],imfs=imfs, res=res )
             plt.plot(range(i, i+predict_steps), evaluation[1][-predict_steps:])
             error.append(evaluation[0])
         plt.show()
         return error
 
-    # TODO change how many times we calc imfs(don't have to the error is statistically insignificant)
     def eval(self, whole_ts: np.ndarray, start_index: int, no_steps_to_predict: int = 10,
-             y: np.ndarray = None) -> tuple[float, np.ndarray]:
+             y: np.ndarray = None, imfs: list[np.ndarray] = None,
+             res: list[np.ndarray] = None) -> tuple[float, np.ndarray]:
         """
         Predict
         Make sure that time series is of the maximum length possible
@@ -209,17 +210,29 @@ class MEEMDGMDH:
         :param no_steps_to_predict: have many steps ahead to predict
         :param y: if added it is used to calculate the mean square error make sure that y is the length of
         no_steps_to_predict
+        :param imfs: precomputd imfs to use
+        :param res: precomputed res to use
         :return: returns the predicted result or if y was given the mean square error
         """
-        # self.layers_composition()
-        # calculate imfs on the whole historical context
-        self.timeseries = whole_ts[:start_index]
-        #print(f"eval ts size {self.timeseries.shape}")
-        # just get the last <window_size> part of the imfs and res because we will be predicting only new poitns.
-        imfs, res = self.create_median(*self.create_ensamble_imfs(use_split=1.0, cut_off=-(self.window_size-1)))
+        if imfs is None and res is None:
+            # calculate imfs on the whole historical context
+            self.timeseries = whole_ts[:start_index]
+            #print(f"eval ts size {self.timeseries.shape}")
+            # just get the last <window_size> part of the imfs and res because we will be predicting only new poitns.
+            imfs, res = self.create_median(*self.create_ensamble_imfs(use_split=1.0, cut_off=-(self.window_size-1)))
+        else:
 
+            for i , imf in enumerate(imfs):
+                print("Pre imf:", imfs[i].shape)
+                imfs[i] = imf[:start_index]
+                print("Post:", imfs[i].shape)
+            print("Pre res:", res[0].shape)
+            res[0] = res[0][:start_index]
+            print("Post:", res[0].shape)
+        # something is going wrong... with the sizes of imfs and res
         prediction = self.predict_based_on_imf_res(imfs, res, no_steps_to_predict)
-        print(prediction)
+        print("Done predicting:",imfs[0].shape, res[0].shape)
+        #print(prediction)
         if y is not None:
             print("To compare with:", y)
             return utils.mean_square_error(prediction[:len(y)], y), prediction
@@ -234,25 +247,33 @@ class MEEMDGMDH:
 
     def predict_based_on_imf_res(self, imfs, res, no_steps_predict: int = 10):
         # predict no_steps_to_predict ahead
+        #print(imfs, res)
+        local_imfs = []
         for i, imf in enumerate(imfs):
             for step in range(no_steps_predict):
                 #print(imf.shape)
                 X = imf[-(self.window_size - 1):]
+                print("Imf shape:", X.shape, imf.shape)
                 result = self.models[i].evaluate(np.expand_dims(X, 0))
-                imf = np.concatenate((imf, np.squeeze(result, axis=-1)), axis=-1)
-            imfs[i] = imf
+                c = np.concatenate((imf, np.squeeze(result, axis=-1)), axis=-1)
+            local_imfs.append(c)
+            print(len(c))
         res = res[0]
         for step in range(no_steps_predict):
             X = res[-(self.window_size - 1):]
+            print("Res shape:", X.shape, res.shape)
             result = self.model_res.evaluate(np.expand_dims(X, 0))
+            print(result.shape)
             try:
                 res = np.concatenate((res, np.squeeze(result, axis=-1)), axis=0)
             except ValueError as e:
                 print(e, res.shape, result.shape)
                 return None
+
         # sum the models
-        sum_all = imfs[0]
-        for imf in imfs[1:]:
+        print(imfs,res)
+        sum_all = local_imfs[0]
+        for imf in local_imfs[1:]:
             sum_all = sum_all + imf
         #print("Sum all:",sum_all)
         return sum_all + res
