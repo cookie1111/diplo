@@ -189,12 +189,12 @@ class MEEMDGMDH:
         imfs, res = self.create_median(*self.create_ensamble_imfs(use_split=1.0,
                                                                   cut_off=-(self.window_size-1)))
         #print(imfs[0].shape,res[0].shape)
-
+        plt.plot(range(int(floor(test_set_length*splits[1])), test_set_length),ts[int(floor(test_set_length*splits[1])):])
         error = []
         utils.printProgressBar(0,test_set_length -int(floor(test_set_length*splits[1])), prefix="Testing")
         for i in range(int(floor(test_set_length*splits[1])), test_set_length, predict_steps):
             evaluation = self.eval(ts, i, predict_steps, y=ts[i: i + predict_steps],imfs=imfs, res=res )
-            plt.plot(range(i, i+predict_steps), evaluation[1][-predict_steps:])
+            #plt.plot(range(i-1, i+predict_steps), evaluation[1][-(predict_steps+1):])
             error.append(evaluation[0])
             utils.printProgressBar(i+1-int(floor(test_set_length*splits[1])),
                                    test_set_length-int(floor(test_set_length*splits[1])), prefix="Testing")
