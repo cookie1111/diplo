@@ -187,7 +187,7 @@ class MEEMDGMDH:
         error = []
         for i in range(int(floor(test_set_length*splits[1])), test_set_length, predict_steps):
             evaluation = self.eval(self.timeseries, i, predict_steps, y=self.timeseries[i: i + predict_steps])
-            plt.plot(range(i, i+predict_steps), evaluation[1])
+            plt.plot(range(i, i+predict_steps), evaluation[1][-predict_steps:])
             error.append(evaluation[0])
         plt.show()
         return error
@@ -206,6 +206,7 @@ class MEEMDGMDH:
         no_steps_to_predict
         :return: returns the predicted result or if y was given the mean square error
         """
+        # self.layers_composition()
         # calculate imfs on the whole historical context
         self.timeseries = whole_ts[:start_index]
         #print(f"eval ts size {self.timeseries.shape}")
@@ -213,9 +214,18 @@ class MEEMDGMDH:
         imfs, res = self.create_median(*self.create_ensamble_imfs(use_split=1.0, cut_off=-(self.window_size-1)))
 
         prediction = self.predict_based_on_imf_res(imfs, res, no_steps_to_predict)
-        if y:
+        print(prediction)
+        if y is not None:
+            print("To compare with:", y)
             return utils.mean_square_error(prediction[:len(y)], y), prediction
         return 0, prediction
+
+    def layers_composition(self):
+        for no, mo in enumerate(self.models):
+            print(f"Model for imf {no}:")
+            mo.model_composition()
+        print("Model for res:")
+        self.model_res.model_composition()
 
     def predict_based_on_imf_res(self, imfs, res, no_steps_predict: int = 10):
         # predict no_steps_to_predict ahead
@@ -226,14 +236,20 @@ class MEEMDGMDH:
                 result = self.models[i].evaluate(np.expand_dims(X, 0))
                 imf = np.concatenate((imf, np.squeeze(result, axis=-1)), axis=-1)
             imfs[i] = imf
+        res = res[0]
         for step in range(no_steps_predict):
             X = res[-(self.window_size - 1):]
             result = self.model_res.evaluate(np.expand_dims(X, 0))
-            res = np.concatenate((res, np.squeeze(result, axis=-1)), axis=0)
+            try:
+                res = np.concatenate((res, np.squeeze(result, axis=-1)), axis=0)
+            except ValueError as e:
+                print(e, res.shape, result.shape)
+                return None
         # sum the models
         sum_all = imfs[0]
-        for imf in imfs:
+        for imf in imfs[1:]:
             sum_all = sum_all + imf
+        print("Sum all:",sum_all)
         return sum_all + res
 
 if __name__ == '__main__':

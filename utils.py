@@ -647,6 +647,10 @@ class GMDHSlim:
         self.layers = []
         self.max_layer_size = max_layer_size
 
+    def model_composition(self):
+        for i, l in enumerate(self.layers):
+            print(f"Layer {i}: {len(l)}")
+
     # DONE
     def construct_GMDH(self, X_train, y_train, X_select, y_select, stop_leniency):
         cost = np.inf
@@ -696,6 +700,9 @@ class MatrixGMDHLayer:
         self.ts_split = train_select_split
         self.layer = None
         self.max_layer_size = max_layer_size
+
+    def __len__(self):
+        return len(self.layer)
 
     @staticmethod
     def calc_poly_coeff(X: np.ndarray, y: np.ndarray, transfer_func: Callable):
@@ -844,12 +851,14 @@ class MatrixGMDHLayer:
         :param X: input variables from previous layer
         :return:
         """
-        #print(X.shape)
+        if len(X.shape) > 2:
+            X = np.squeeze(X, axis=0)
         res = []
-        n_layers = len(self.layer)
+        #n_layers = len(self.layer)
         try:
             for j, i in enumerate(self.layer):
                 if i[1][1] == -1:
+
                     res.append(X[:, i[1][0]])
                 else:
                     # use the neurons transfer function for the inputs
@@ -859,7 +868,9 @@ class MatrixGMDHLayer:
                     res.append(y)
             res = np.array(res)
         except IndexError as e:
-            print(self.layer)
+            print(e, ":", self.layer, X)
+
+        print(res)
         return res.T
 
     def reduce_to_output(self):
