@@ -870,7 +870,7 @@ class MatrixGMDHLayer:
         except IndexError as e:
             print(e, ":", self.layer, X)
 
-        print(res)
+        #print(res)
         return res.T
 
     def reduce_to_output(self):

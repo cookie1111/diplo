@@ -182,11 +182,16 @@ class MEEMDGMDH:
         # Turns out that i don't need to recalculate the imfs each time
         # we need start of the test set and then move it forward by 10 each time and predicting it
         test_set_length = len(self.timeseries)
+        ts = self.timeseries
         plt.figure()
 
         error = []
         for i in range(int(floor(test_set_length*splits[1])), test_set_length, predict_steps):
-            evaluation = self.eval(self.timeseries, i, predict_steps, y=self.timeseries[i: i + predict_steps])
+            print("Printamo:", i, i+predict_steps,)
+            print(ts[int(floor(test_set_length * splits[1])):])
+
+            print(ts.iloc[i: i + predict_steps], "len: ", test_set_length)
+            evaluation = self.eval(ts, i, predict_steps, y=ts[i: i + predict_steps])
             plt.plot(range(i, i+predict_steps), evaluation[1][-predict_steps:])
             error.append(evaluation[0])
         plt.show()
@@ -231,7 +236,7 @@ class MEEMDGMDH:
         # predict no_steps_to_predict ahead
         for i, imf in enumerate(imfs):
             for step in range(no_steps_predict):
-                print(imf.shape)
+                #print(imf.shape)
                 X = imf[-(self.window_size - 1):]
                 result = self.models[i].evaluate(np.expand_dims(X, 0))
                 imf = np.concatenate((imf, np.squeeze(result, axis=-1)), axis=-1)
@@ -249,7 +254,7 @@ class MEEMDGMDH:
         sum_all = imfs[0]
         for imf in imfs[1:]:
             sum_all = sum_all + imf
-        print("Sum all:",sum_all)
+        #print("Sum all:",sum_all)
         return sum_all + res
 
 if __name__ == '__main__':
