@@ -192,12 +192,22 @@ class MEEMDGMDH:
         plt.plot(range(int(floor(test_set_length*splits[1])), test_set_length),ts[int(floor(test_set_length*splits[1])):])
         error = []
         utils.printProgressBar(0,test_set_length -int(floor(test_set_length*splits[1])), prefix="Testing")
+        if predict_steps == 1:
+            evaluation_all = []
+
         for i in range(int(floor(test_set_length*splits[1])), test_set_length, predict_steps):
             evaluation = self.eval(ts, i, predict_steps, y=ts[i: i + predict_steps],imfs=imfs, res=res )
-            #plt.plot(range(i-1, i+predict_steps), evaluation[1][-(predict_steps+1):])
+            if predict_steps == 1:
+                evaluation_all.append(evaluation)
+            else:
+                pass
+                #plt.plot(range(i-1, i+predict_steps), evaluation[1][-(predict_steps+1):])
             error.append(evaluation[0])
             utils.printProgressBar(i+1-int(floor(test_set_length*splits[1])),
                                    test_set_length-int(floor(test_set_length*splits[1])), prefix="Testing")
+        plt.show()
+        plt.figure()
+        plt.plot(range(len(error)), error)
         plt.show()
         return error
 
