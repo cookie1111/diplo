@@ -440,15 +440,15 @@ if __name__ == '__main__':
 
     if TEST == 13:
         s = utils.normalize_ts(s, 0.8)
-        meme = MEEMDGMDH(s, 8, "MEEMD-GMDH_test64.pickle")
+        meme = MEEMDGMDH(s, 64, "MEEMD-GMDH_test64.pickle")
         meme.train_sets([(utils.poly, lambda x: x),
                          (utils.sigmoid, utils.inverse_sigmoid),
-                         #(utils.hyperbolic_tangent, utils.inverse_hyperbolic_tangent),
-                         #(utils.radial_basis, utils.inverse_radial_basis)
+                         (utils.hyperbolic_tangent, utils.inverse_hyperbolic_tangent),
+                         (utils.radial_basis, utils.inverse_radial_basis)
                          ],
                         splits=(0.8*0.8, 0.8, 1),
                         window_size=10,
                         predict_steps=1,
-                        imfs_save="imf_testing.pickle",
-                        models_save="model_testing.pickle",
+                        imfs_save="imf_main.pickle",
+                        models_save="model_main.pickle",
                         )
