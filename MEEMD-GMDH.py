@@ -14,6 +14,7 @@ from typing import Callable
 #import pickle as pkl
 import dill as pkl
 
+FOR_PRINTING = 0
 
 TEST = 13
 
@@ -167,7 +168,6 @@ class MEEMDGMDH:
                 pkl.dump((self.models, None), f)
 
         if not self.model_res:
-            print(res_train, res_select)
             dloader_train = DataLoader(res_train[0])
             dloader_select = DataLoader(res_select[0])
             # dloader_test = DataLoader(res_test)
@@ -187,24 +187,27 @@ class MEEMDGMDH:
         ts = self.timeseries
         plt.figure()
         imfs, res = self.create_median(*self.create_ensamble_imfs(use_split=1.0,
-                                                                  cut_off=-(self.window_size-1)))
+                                                                  cut_off=0))
         #print(imfs[0].shape,res[0].shape)
         plt.plot(range(int(floor(test_set_length*splits[1])), test_set_length),ts[int(floor(test_set_length*splits[1])):])
         error = []
-        utils.printProgressBar(0,test_set_length -int(floor(test_set_length*splits[1])), prefix="Testing")
+        #utils.printProgressBar(0, test_set_length - int(floor(test_set_length*splits[1])), prefix="Testing")
         if predict_steps == 1:
             evaluation_all = []
 
         for i in range(int(floor(test_set_length*splits[1])), test_set_length, predict_steps):
-            evaluation = self.eval(ts, i, predict_steps, y=ts[i: i + predict_steps],imfs=imfs, res=res )
+            # I AM MOST LIKELY WRITING OVER THE IMF
+            evaluation = self.eval(ts, i, predict_steps, y=ts[i: i + predict_steps], imfs=imfs, res=res)
             if predict_steps == 1:
                 evaluation_all.append(evaluation)
             else:
                 pass
                 #plt.plot(range(i-1, i+predict_steps), evaluation[1][-(predict_steps+1):])
             error.append(evaluation[0])
-            utils.printProgressBar(i+1-int(floor(test_set_length*splits[1])),
-                                   test_set_length-int(floor(test_set_length*splits[1])), prefix="Testing")
+            #utils.printProgressBar(i+1-int(floor(test_set_length*splits[1])),
+            #                       test_set_length-int(floor(test_set_length*splits[1])), prefix="Testing")
+        pred_conc = np.concatenate([ev[1] for ev in evaluation_all], axis=0)
+        plt.plot(range(len(pred_conc)), pred_conc)
         plt.show()
         plt.figure()
         plt.plot(range(len(error)), error)
@@ -227,23 +230,33 @@ class MEEMDGMDH:
         :param res: precomputed res to use
         :return: returns the predicted result or if y was given the mean square error
         """
+        local_imfs = []
+        local_res = []
+        global FOR_PRINTING
         if imfs is None and res is None:
             # calculate imfs on the whole historical context
             self.timeseries = whole_ts[:start_index]
             #print(f"eval ts size {self.timeseries.shape}")
-            # just get the last <window_size> part of the imfs and res because we will be predicting only new poitns.
-            imfs, res = self.create_median(*self.create_ensamble_imfs(use_split=1.0, cut_off=-(self.window_size-1)))
+            # just get the last <window_size> part of the imfs and res because we will be predicting only new points.
+            local_imfs, local_res = self.create_median(*self.create_ensamble_imfs(use_split=1.0, cut_off=-(self.window_size-1)))
         else:
+            for i, imf in enumerate(imfs):
+                local_imfs.append(np.copy(imf[start_index-(self.window_size-1):start_index]))
+            local_res.append(np.copy(res[0][start_index-(self.window_size-1):start_index]))
+        if not (FOR_PRINTING % 1000):
+            plt.figure()
 
-            for i , imf in enumerate(imfs):
-                #print("Pre imf:", imfs[i].shape)
-                imfs[i] = imf[:start_index]
-                #print("Post:", imfs[i].shape)
-            #print("Pre res:", res[0].shape)
-            res[0] = res[0][:start_index]
-            #print("Post:", res[0].shape)
-        # something is going wrong... with the sizes of imfs and res
-        prediction = self.predict_based_on_imf_res(imfs, res, no_steps_to_predict)
+            for i in enumerate(local_imfs):
+                if i[0] == 0:
+                    sumacija = np.copy(i[1])
+                else:
+                    sumacija = sumacija + i[1]
+            sumacija = sumacija + local_res[0]
+            plt.plot(range(len(sumacija)), sumacija)
+            plt.show()
+        FOR_PRINTING = FOR_PRINTING + 1
+        #print("len:",len(local_imfs))
+        prediction = self.predict_based_on_imf_res(local_imfs, local_res, no_steps_to_predict)
         #print("Done predicting:",imfs[0].shape, res[0].shape)
         #print(prediction)
         if y is not None:
@@ -262,14 +275,18 @@ class MEEMDGMDH:
         # predict no_steps_to_predict ahead
         #print(imfs, res)
         local_imfs = []
+        #print(f"len 2: {len(imfs)}\n {[i.shape for i in imfs]}")
         for i, imf in enumerate(imfs):
             for step in range(no_steps_predict):
                 #print(imf.shape)
-                X = imf[-(self.window_size - 1):]
+                if step > 0:
+                    X = c[-(self.window_size - 1):]
+                else:
+                    X = imf[-(self.window_size - 1):]
                 #print("Imf shape:", X.shape, imf.shape)
                 result = self.models[i].evaluate(np.expand_dims(X, 0))
                 c = np.concatenate((imf, np.squeeze(result, axis=-1)), axis=-1)
-            local_imfs.append(c)
+            local_imfs.append(c[-no_steps_predict:])
             #print(len(c))
         res = res[0]
         for step in range(no_steps_predict):
@@ -440,15 +457,15 @@ if __name__ == '__main__':
 
     if TEST == 13:
         s = utils.normalize_ts(s, 0.8)
-        meme = MEEMDGMDH(s, 64, "MEEMD-GMDH_test64.pickle")
+        meme = MEEMDGMDH(s, 8, "MEEMD-GMDH_test64.pickle")
         meme.train_sets([(utils.poly, lambda x: x),
-                         (utils.sigmoid, utils.inverse_sigmoid),
-                         (utils.hyperbolic_tangent, utils.inverse_hyperbolic_tangent),
+                         #(utils.sigmoid, utils.inverse_sigmoid),
+                         #(utils.hyperbolic_tangent, utils.inverse_hyperbolic_tangent),
                          (utils.radial_basis, utils.inverse_radial_basis)
                          ],
                         splits=(0.8*0.8, 0.8, 1),
                         window_size=10,
                         predict_steps=1,
-                        imfs_save="imf_main.pickle",
-                        models_save="model_main.pickle",
+                        imfs_save="imf_testing.pickle",
+                        models_save="model_testing.pickle",
                         )
