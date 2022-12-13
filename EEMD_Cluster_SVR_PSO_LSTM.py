@@ -41,14 +41,19 @@ class EEMD_Clustered_SVR_PSO_LSTM:
         combined_imfs[class_counter+1] = IMFS[1]
         return combined_imfs
 
-    def svr_high_freq(self, high_freq_ts: np.ndarray):
+    def svr_high_freq(self, X: np.ndarray, y: np.ndarray):
+        print(X.shape, y.shape)
+        y = np.squeeze(y)
         self.svr = SVR()
-        X, y = DataLoader(high_freq_ts).window_split_x_y(self.window_size)
-        self.svr.fit(X, y)
+        self.svr = self.svr.fit(X, y)
+
+    def pso_lstm
+
+
 
 
 if __name__ == "__main__":
-    TEST = 1
+    TEST = 2
 
     if TEST == 0:
         sig = np.linspace(0, 1, 200)
@@ -72,7 +77,12 @@ if __name__ == "__main__":
             plt.show()
     if TEST == 2:
         df = pd.read_csv("snp500.csv")
-        sig = normalize_ts(df["Close"].values)
-        model = EEMD_Clustered_SVR_PSO_LSTM(30, 10)
-
-
+        sig = normalize_ts(df["Close"].values, 0.8*0.8)
+        model = EEMD_Clustered_SVR_PSO_LSTM(30, 1)
+        clustered = model.emd_calculation_and_clustering(sig)
+        (X_train, y_train), (X_test, y_test), (X_val, y_val) = DataLoader(clustered[0]
+                                                                          ).window_split_train_select_val_x_y(0.8,
+                                                                                                              0.8,
+                                                                                                              30,
+                                                                                                              1)
+        model.svr_high_freq(X_train, y_train)
