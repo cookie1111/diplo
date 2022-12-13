@@ -1,0 +1,1 @@
+Need to rework all of them to classification algorithms to compare to my one for spotting the reversal points.

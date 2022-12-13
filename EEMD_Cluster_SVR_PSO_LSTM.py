@@ -5,13 +5,15 @@ from PyEMD import EMD
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.svm import SVR
-from utils import normalize_ts
+from utils import normalize_ts, DataLoader
+
 
 class EEMD_Clustered_SVR_PSO_LSTM:
 
     def __init__(self, window_size: int, prediction_size: int):
         self.emd = EMD()
-
+        self.window_size = window_size
+        self.prediction_size = prediction_size
 
     # Maybe use entropy to compare
     def emd_calculation_and_clustering(self, ts: np.ndarray) -> dict[int: np.ndarray]:
@@ -41,6 +43,8 @@ class EEMD_Clustered_SVR_PSO_LSTM:
 
     def svr_high_freq(self, high_freq_ts: np.ndarray):
         self.svr = SVR()
+        X, y = DataLoader(high_freq_ts).window_split_x_y(self.window_size)
+        self.svr.fit(X, y)
 
 
 if __name__ == "__main__":
