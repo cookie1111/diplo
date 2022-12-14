@@ -24,15 +24,28 @@ class SequenceDataset(Dataset):
         if i > self.X.shape[0] - self.sequence_length:
             raise IndexError(f"{i} is out of range for {self.__len__()}")
 
-        x = self.X[i:(i + self.sequence_length)]
+        x = torch.unsqueeze(self.X[i:(i + self.sequence_length)], dim=0)
 
         return x, self.y[i]
 
-def factory_func_for_train(input_dim, output_dim, X_train, y_train, X_test, y_test):
+
+def factory_func_for_train(input_dim, output_dim, train_dataset, test_dataset):
     def train_LSTM_models(hidden_dim, num_layers, batch_size, lr_rate, epochs):
 
         model = LSTM(input_dim, hidden_dim, num_layers, output_dim)
-        err = train_model(model, X_train, y_train, X_test, y_test, epochs, batch_size, lr_rate)
+
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+        optimizer = Adam(model.parameters(), lr=lr_rate)
+
+        loss_function = nn.MSELoss()
+        test_model(test_loader, model, loss_function)
+
+        for epoch in range(epochs):
+            train_model(train_loader, model, loss_function, optimizer=optimizer)
+            test_loss = test_model(test_loader, model, loss_function)
+        return test_loss
 
     return train_LSTM_models
 
@@ -48,17 +61,18 @@ class LSTM(nn.Module):
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_dim, output_dim)
 
-
     def forward(self, x):
         batch_size = x.shape[0]
         h0 = torch.zeros(self.num_layers, batch_size, self.hidden_dim).requires_grad_()
         c0 = torch.zeros(self.num_layers, batch_size, self.hidden_dim).requires_grad_()
 
+        #print(x.size())
+
         out, (hn, cn) = self.lstm(x, (h0, c0))
 
         out = self.fc(hn[0])
 
-        return out
+        return torch.squeeze(out)
 
 
 def train_model(data_loader, model, loss_function, optimizer):
@@ -77,7 +91,7 @@ def train_model(data_loader, model, loss_function, optimizer):
         total_loss += loss.item()
 
     avg_loss = total_loss / num_batches
-    print(f"Train loss: {avg_loss}")
+    return avg_loss
 
 
 def test_model(data_loader, model, loss_function):
@@ -91,10 +105,7 @@ def test_model(data_loader, model, loss_function):
             total_loss += loss_function(output, y).item()
 
     avg_loss = total_loss / num_batches
-    print(f"Test loss: {avg_loss}")
-
-
-
+    return avg_loss
 
 if __name__ == "__main__":
     TEST = 0
@@ -107,9 +118,9 @@ if __name__ == "__main__":
     train_dataset = SequenceDataset(sig[:floor(len(sig)*0.8*0.8)], target_len=target_length,
                                     sequence_length=sequence_length)
     test_dataset = SequenceDataset(sig[floor(len(sig)*0.8*0.8):floor(len(sig)*0.8)], target_len=target_length,
-                                    sequence_length=sequence_length)
-    val_dataset = SequenceDataset(sig[floor(len(sig)*0.8):], target_len=target_length,
                                    sequence_length=sequence_length)
+    val_dataset = SequenceDataset(sig[floor(len(sig)*0.8):], target_len=target_length,
+                                  sequence_length=sequence_length)
 
     if TEST == 0:
         # Set the random seed for reproducibility
@@ -132,7 +143,7 @@ if __name__ == "__main__":
         test_model(test_loader, model, loss_function)
         print()
 
-        for ix_epoch in range(2):
+        for ix_epoch in range(200):
             print(f"Epoch {ix_epoch}\n---------")
             train_model(train_loader, model, loss_function, optimizer=optimizer)
             test_model(test_loader, model, loss_function)
