@@ -6,7 +6,10 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.svm import SVR
 from utils import normalize_ts, DataLoader
-from sko.PSO import PSO
+import sko
+from lstm import factory_func_for_train, SequenceDataset, LSTM, train_model, test_model
+from math import floor
+#from torch.utils.data import DataLoader
 
 
 class EEMD_Clustered_SVR_PSO_LSTM:
@@ -53,15 +56,25 @@ class EEMD_Clustered_SVR_PSO_LSTM:
         self.svr = self.svr.fit(X, y)
 
     def pso_lstm(self, imfs):
-        PSO()
-        pass
-
-
-
+        target_length = 1
+        sequence_length = 29
+        for imf in imfs:
+            sig = imfs[imf]
+            train_dataset = SequenceDataset(sig[:floor(len(sig) * 0.8 * 0.8)], target_len=target_length,
+                                            sequence_length=sequence_length)
+            test_dataset = SequenceDataset(sig[floor(len(sig) * 0.8 * 0.8):floor(len(sig) * 0.8)], target_len=target_length,
+                                           sequence_length=sequence_length)
+            val_dataset = SequenceDataset(sig[floor(len(sig) * 0.8):], target_len=target_length,
+                                          sequence_length=sequence_length)
+            print("hello")
+            pso = sko.PSO.PSO(factory_func_for_train(29,1,train_dataset=train_dataset,test_dataset=test_dataset),
+                              n_dim=5, pop=100, max_iter=2)
+            pso.run()
+            print("testing")
 
 
 if __name__ == "__main__":
-    TEST = 2
+    TEST = 3
 
     if TEST == 0:
         sig = np.linspace(0, 1, 200)
@@ -94,3 +107,9 @@ if __name__ == "__main__":
                                                                                                               30,
                                                                                                               1)
         model.svr_high_freq(X_train, y_train)
+    if TEST == 3:
+        df = pd.read_csv("snp500.csv")
+        sig = normalize_ts(df["Close"].values, 0.8 * 0.8)
+        model = EEMD_Clustered_SVR_PSO_LSTM(30, 1)
+        clustered = model.emd_calculation_and_clustering(sig)
+        model.pso_lstm(clustered)
