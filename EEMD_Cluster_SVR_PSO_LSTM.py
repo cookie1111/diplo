@@ -6,9 +6,10 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.svm import SVR
 from utils import normalize_ts, DataLoader
-import sko
+#import sko
 from lstm import factory_func_for_train, SequenceDataset, LSTM, train_model, test_model
 from math import floor
+import pyswarms as ps
 #from torch.utils.data import DataLoader
 
 
@@ -62,15 +63,16 @@ class EEMD_Clustered_SVR_PSO_LSTM:
             sig = imfs[imf]
             train_dataset = SequenceDataset(sig[:floor(len(sig) * 0.8 * 0.8)], target_len=target_length,
                                             sequence_length=sequence_length)
-            test_dataset = SequenceDataset(sig[floor(len(sig) * 0.8 * 0.8):floor(len(sig) * 0.8)], target_len=target_length,
-                                           sequence_length=sequence_length)
+            test_dataset = SequenceDataset(sig[floor(len(sig) * 0.8 * 0.8):floor(len(sig) * 0.8)],
+                                           target_len=target_length, sequence_length=sequence_length)
             val_dataset = SequenceDataset(sig[floor(len(sig) * 0.8):], target_len=target_length,
                                           sequence_length=sequence_length)
-            print("hello")
-            pso = sko.PSO.PSO(factory_func_for_train(29,1,train_dataset=train_dataset,test_dataset=test_dataset),
-                              n_dim=5, pop=100, max_iter=2)
-            pso.run()
-            print("testing")
+            options = {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+            # bounds = [hidden_dim, num_layers, batch_size, lr_rate, epochs]
+            pso = ps.single.GlobalBestPSO(n_particles=10, dimensions=5, options=options,
+                                          bounds=([2, 1, 1, 0.00001, 1], [129, 11, 21, 0.1, 201]))
+            res = pso.optimize(factory_func_for_train(29, 1, train_dataset=train_dataset, test_dataset=test_dataset), 1)
+            print(f"testing {res}")
 
 
 if __name__ == "__main__":

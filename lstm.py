@@ -7,6 +7,7 @@ from math import floor
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import Adam
+import numpy as np
 
 torch.set_printoptions(precision=10)
 
@@ -30,22 +31,31 @@ class SequenceDataset(Dataset):
 
 
 def factory_func_for_train(input_dim, output_dim, train_dataset, test_dataset):
-    def train_LSTM_models(hidden_dim, num_layers, batch_size, lr_rate, epochs):
+    def train_LSTM_models(x):#hidden_dim, num_layers, batch_size, lr_rate, epochs):
+        #print("printing", x)
+        res = []
+        for i in range(len(x)):
+            hidden_dim = floor(x[i][0])
+            num_layers = floor(x[i][1])
+            batch_size = floor(x[i][2])
+            lr_rate = x[i][3]
+            epochs = floor(x[i][4])
 
-        model = LSTM(input_dim, hidden_dim, num_layers, output_dim)
+            model = LSTM(input_dim, hidden_dim, num_layers, output_dim)
 
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
-        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+            test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-        optimizer = Adam(model.parameters(), lr=lr_rate)
+            optimizer = Adam(model.parameters(), lr=lr_rate)
 
-        loss_function = nn.MSELoss()
-        test_model(test_loader, model, loss_function)
+            loss_function = nn.MSELoss()
+            test_model(test_loader, model, loss_function)
 
-        for epoch in range(epochs):
-            train_model(train_loader, model, loss_function, optimizer=optimizer)
-            test_loss = test_model(test_loader, model, loss_function)
-        return test_loss
+            for epoch in range(epochs):
+                train_model(train_loader, model, loss_function, optimizer=optimizer)
+                test_loss = test_model(test_loader, model, loss_function)
+            res.append(test_loss)
+        return np.array(res)
 
     return train_LSTM_models
 
