@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.svm import SVR
 from utils import normalize_ts, DataLoader
+from sko.PSO import PSO
 
 
 class EEMD_Clustered_SVR_PSO_LSTM:
@@ -14,6 +15,10 @@ class EEMD_Clustered_SVR_PSO_LSTM:
         self.emd = EMD()
         self.window_size = window_size
         self.prediction_size = prediction_size
+
+        #pso parameteres
+        self.swarm_size = 200
+        self.random_seed = 42
 
     # Maybe use entropy to compare
     def emd_calculation_and_clustering(self, ts: np.ndarray) -> dict[int: np.ndarray]:
@@ -47,7 +52,10 @@ class EEMD_Clustered_SVR_PSO_LSTM:
         self.svr = SVR()
         self.svr = self.svr.fit(X, y)
 
-    def pso_lstm
+    def pso_lstm(self, imfs):
+        PSO()
+        pass
+
 
 
 
@@ -60,7 +68,7 @@ if __name__ == "__main__":
         sig = np.cos(11 * 2 * np.pi * sig * sig)
         plt.plot(np.linspace(0, 1, 200), sig)
         plt.show()
-        model = EEMD_Clustered_SVR_PSO_LSTM(30, 10)
+        model = EEMD_Clustered_SVR_PSO_LSTM(30, 1)
         plt.plot(np.linspace(0, 1, 200), model.emd_calculation_and_clustering(sig))
         plt.show()
     if TEST == 1:
@@ -68,7 +76,7 @@ if __name__ == "__main__":
         sig = df["Close"].values[-1000:]
         plt.plot(range(len(sig)), sig)
         plt.show()
-        model = EEMD_Clustered_SVR_PSO_LSTM(30, 10)
+        model = EEMD_Clustered_SVR_PSO_LSTM(30, 1)
         clustered = model.emd_calculation_and_clustering(sig)
         print(len(clustered))
         for i in clustered:
