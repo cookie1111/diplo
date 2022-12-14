@@ -1,6 +1,4 @@
-import torch
 from torch import nn
-from torch.utils.data import DataLoader
 from utils import normalize_ts
 import pandas as pd
 from math import floor
