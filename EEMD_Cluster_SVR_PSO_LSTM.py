@@ -82,7 +82,6 @@ class EEMD_Clustered_SVR_PSO_LSTM:
                                                                                                               0.8,
                                                                                                               30,
                                                                                                               1)
-
         self.svr_high_freq(X_train, y_train)
         print(f"Testing SVR:")
         print(f"MSE = {self.test_svr(X_test,y_test)}")
