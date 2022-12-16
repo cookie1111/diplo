@@ -170,4 +170,8 @@ if __name__ == "__main__":
                                       sequence_length=29)
 
         print("dataset:", len(train_dataset), len(test_dataset), len(val_dataset))
-        print("mine:", X_train.shape, X_test.shape, X_val.shape)
+        print("mine:", X_train.shape, y_train.shape, X_test.shape, X_val.shape)
+        print(len(sig[:floor(len(sig) * 0.8 * 0.8)]))
+        print(len(sig[:floor(len(sig)*0.8*0.8)]))
+        print("comparing dataset to actual sig", sig[11198:11227], X_train[-1,:], y_train[-1])
+        print(train_dataset[-2])

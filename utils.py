@@ -523,6 +523,7 @@ class DataLoader:
 
     def window_split_x_y(self, window_size: int = 30, y_len: int = 1):
         x = self.window(window_size=window_size)
+        print("Shape window",x.shape)
         return x[:, :-y_len], x[:, -y_len:]
 
     def window_split_train_val_x_y(self, train_val_split: float = 0.8, window_size: int = 30, y_len: int = 1):

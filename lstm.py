@@ -13,17 +13,23 @@ class SequenceDataset(Dataset):
     def __init__(self, ts, target_len, sequence_length=29):
         self.target_len = target_len
         self.sequence_length = sequence_length
-        self.y = torch.tensor(ts[sequence_length+1:]).float()
+        self.y = torch.tensor(ts[sequence_length:]).float()
         self.X = torch.tensor(ts[:-target_len]).float()
 
     def __len__(self):
-        return self.X.shape[0] - self.sequence_length
+        return self.X.shape[0] - self.sequence_length+1
 
     def __getitem__(self, i):
-        if i > self.X.shape[0] - self.sequence_length:
+        if i > self.X.shape[0] - self.sequence_length+1:
             raise IndexError(f"{i} is out of range for {self.__len__()}")
-
-        x = torch.unsqueeze(self.X[i:(i + self.sequence_length)], dim=0)
+        #print("Dataloader bigus",self.X.shape, self.y.shape)
+        if i == -1:
+            x = torch.unsqueeze(self.X[-self.sequence_length:], dim=0)
+        elif i < 0:
+            x = torch.unsqueeze(self.X[-self.sequence_length+i+1:i+1], dim=0)
+            #print(self.X[-self.sequence_length+i:i], self.y[i:])
+        else:
+            x = torch.unsqueeze(self.X[i:(i + self.sequence_length)], dim=0)
 
         return x, self.y[i]
 
