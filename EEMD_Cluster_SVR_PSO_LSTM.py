@@ -128,10 +128,10 @@ class EEMD_Clustered_SVR_PSO_LSTM:
             val_dataset = SequenceDataset(clusters[i][floor(len(clusters[i]) * 0.8):], target_len=target_length,
                                           sequence_length=sequence_length)
             val_dloader = torch.DataLoader(val_dataset, batch_size=self.batch_sizes[i-1], shuffle=False)
+            # TODO could add the individual testing of the particular models
             outputs[i-1] = eval_model(val_dloader, self.imf_lstms[i-1])
         output = sum(outputs) + res
         print(loss_fn(output, y_val))
-
 
 
 if __name__ == "__main__":
