@@ -7,7 +7,7 @@ from sklearn.svm import SVR
 
 import utils
 from utils import normalize_ts, DataLoader
-from lstm import factory_func_for_train, SequenceDataset, LSTM, train_model, test_model
+from lstm import factory_func_for_train, SequenceDataset, LSTM, train_model, test_model, model_factory_func
 from math import floor
 import pyswarms as ps
 
@@ -22,6 +22,9 @@ class EEMD_Clustered_SVR_PSO_LSTM:
         #pso parameteres
         self.swarm_size = 200
         self.random_seed = 42
+
+        self.svr = None
+        self.imf_lstms = [None]*4
 
     # Maybe use entropy to compare
     def emd_calculation_and_clustering(self, ts: np.ndarray) -> dict[int: np.ndarray]:
@@ -68,6 +71,7 @@ class EEMD_Clustered_SVR_PSO_LSTM:
                                       bounds=([2, 1, 1, 0.00001, 1], [129, 11, 21, 0.1, 201]))
         res = pso.optimize(factory_func_for_train(29, 1, train_dataset=train_dataset, test_dataset=test_dataset), 1)
         print(f"testing {res}")
+        return res
 
     def train(self, ts: np.ndarray):
         """
@@ -97,16 +101,14 @@ class EEMD_Clustered_SVR_PSO_LSTM:
                                             sequence_length=sequence_length)
             test_dataset = SequenceDataset(clusters[i][floor(len(clusters[i]) * 0.8 * 0.8):floor(len(sig) * 0.8)],
                                            target_len=target_length, sequence_length=sequence_length)
+            train_test_dataset = SequenceDataset(clusters[i][:floor(len(sig) * 0.8)], target_len=target_length,
+                                                 sequence_length=sequence_length)
             val_dataset = SequenceDataset(clusters[i][floor(len(clusters[i]) * 0.8):], target_len=target_length,
                                           sequence_length=sequence_length)
             print("dataset:", len(train_dataset), len(test_dataset), len(val_dataset))
             print("mine:", X_train.shape, X_test.shape, X_val.shape)
-            self.pso_lstm(train_dataset, test_dataset)
-
-
-
-
-
+            params = self.pso_lstm(train_dataset, test_dataset)
+            self.imf_lstms[i] = model_factory_func(sequence_length, target_length, train_test_dataset)(params)
 
 
 if __name__ == "__main__":
@@ -176,3 +178,6 @@ if __name__ == "__main__":
         print(len(sig[:floor(len(sig)*0.8*0.8)]))
         print("comparing dataset to actual sig", sig[11198:11227], X_train[-1,:], y_train[-1])
         print(train_dataset[-2])
+    if TEST == 6:
+        df = pd.read_csv("snp500.csv")
+        sig = normalize_ts(df["Close"].values, 0.8 * 0.8)

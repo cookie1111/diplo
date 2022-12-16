@@ -64,6 +64,30 @@ def factory_func_for_train(input_dim, output_dim, train_dataset, test_dataset):
     return train_LSTM_models
 
 
+def model_factory_func(input_dim, output_dim, train_test_dataset):
+    def create_LSTM_model(x):#hidden_dim, num_layers, batch_size, lr_rate, epochs):
+        hidden_dim = floor(x[0])
+        num_layers = floor(x[1])
+        batch_size = floor(x[2])
+        lr_rate = x[3]
+        epochs = floor(x[4])
+
+        model = LSTM(input_dim, hidden_dim, num_layers, output_dim)
+
+        train_test_loader = DataLoader(train_test_dataset, batch_size=batch_size, shuffle=False)
+
+        optimizer = Adam(model.parameters(), lr=lr_rate)
+
+        loss_function = nn.MSELoss()
+        test_model(test_loader, model, loss_function)
+
+        for epoch in range(epochs):
+            train_model(train_test_loader, model, loss_function, optimizer=optimizer)
+        return model
+
+    return create_LSTM_model
+
+
 class LSTM(nn.Module):
 
     def __init__(self, input_dim, hidden_dim, num_layers, output_dim):
