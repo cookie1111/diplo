@@ -98,7 +98,8 @@ class EEMD_Clustered_SVR_PSO_LSTM:
                                            target_len=target_length, sequence_length=sequence_length)
             val_dataset = SequenceDataset(sig[floor(len(sig) * 0.8):], target_len=target_length,
                                           sequence_length=sequence_length)
-            print("printam",len(val_dataset), len(X_val), y_val[0, :])
+            print("dataset:", len(train_dataset), len(test_dataset), len(val_dataset))
+            print("mine:", X_train.shape, X_test.shape, X_val.shape)
             self.pso_lstm(train_dataset, test_dataset)
 
 
@@ -108,7 +109,7 @@ class EEMD_Clustered_SVR_PSO_LSTM:
 
 
 if __name__ == "__main__":
-    TEST = 4
+    TEST = 5
 
     if TEST == 0:
         sig = np.linspace(0, 1, 200)
@@ -152,3 +153,21 @@ if __name__ == "__main__":
         sig = normalize_ts(df["Close"].values, 0.8 * 0.8)
         model = EEMD_Clustered_SVR_PSO_LSTM(30, 1)
         model.train(sig)
+    if TEST == 5:
+        df = pd.read_csv("snp500.csv")
+        sig = normalize_ts(df["Close"].values, 0.8 * 0.8)
+        dl = DataLoader(sig[:floor(len(sig)*0.8*0.8)])
+        (X_train, y_train) = dl.window_split_x_y(30,1)
+        dl = DataLoader(sig[floor(len(sig) * 0.8 * 0.8):floor(len(sig) * 0.8)])
+        (X_test, y_test) = dl.window_split_x_y(30, 1)
+        dl = DataLoader(sig[floor(len(sig) * 0.8):])
+        (X_val, y_val) = dl.window_split_x_y(30, 1)
+        train_dataset = SequenceDataset(sig[:floor(len(sig) * 0.8 * 0.8)], target_len=1,
+                                        sequence_length=29)
+        test_dataset = SequenceDataset(sig[floor(len(sig) * 0.8 * 0.8):floor(len(sig) * 0.8)],
+                                       target_len=1, sequence_length=29)
+        val_dataset = SequenceDataset(sig[floor(len(sig) * 0.8):], target_len=1,
+                                      sequence_length=29)
+
+        print("dataset:", len(train_dataset), len(test_dataset), len(val_dataset))
+        print("mine:", X_train.shape, X_test.shape, X_val.shape)

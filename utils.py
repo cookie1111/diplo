@@ -539,22 +539,25 @@ class DataLoader:
     def window_split_train_select_val_x_y(self, train_select_split: float = 0.5, train_val_split: float = 0.8,
                                           window_size: int = 30, y_len: int = 1):
         x, y = self.window_split_x_y(window_size=window_size, y_len=y_len)
-        # TODO fix from here onwards so that train_x doesn't bleed into val_x with the features(window size)
-        train_x, val_x = x[:floor(len(x) * train_val_split), :], x[floor(len(x) * train_val_split):, :]
-        if len(y.shape) == 1:
-            train_y, val_y = y[:floor(len(y) * train_val_split)], y[floor(len(y) * train_val_split):]
-        else:
-            train_y, val_y = y[:floor(len(y) * train_val_split), :], y[floor(len(y) * train_val_split):, :]
 
-        train_x, select_x = train_x[:floor(len(train_x) * train_select_split), :], \
+        # TODO fix from here onwards so that train_x doesn't bleed into val_x with the features(window size)
+        train_x, val_x = x[:floor(len(x) * train_val_split)-window_size, :], x[floor(len(x) * train_val_split):, :]
+        if len(y.shape) == 1:
+            train_y, val_y = y[:floor(len(y) * train_val_split)-window_size], y[floor(len(y) * train_val_split):]
+        else:
+            train_y, val_y = y[:floor(len(y) * train_val_split)-window_size, :], y[floor(len(y) * train_val_split):, :]
+
+        train_x, select_x = train_x[:floor(len(train_x) * train_select_split)-window_size, :], \
                             train_x[floor(len(train_x) * train_select_split):, :]
         if len(train_y.shape) == 1:
-            train_y, select_y = train_y[:floor(len(train_y) * train_select_split)], train_y[floor(
+            train_y, select_y = train_y[:floor(len(train_y) * train_select_split)-window_size], train_y[floor(
                 len(train_y) * train_select_split):]
         else:
-            train_y, select_y = train_y[:floor(len(train_y) * train_select_split), :], train_y[floor(
+            train_y, select_y = train_y[:floor(len(train_y) * train_select_split)-window_size, :], train_y[floor(
                 len(train_y) * train_select_split):, :]
-
+        print(f"Creating my dataload: "
+            f"val beginning = {floor(len(x) * train_val_split)},"
+            f"test beginning = {floor(len(train_x) * train_select_split)}")
         return (train_x, train_y), (select_x, select_y), (val_x, val_y)
 
 def printProgressBar(iteration, total, prefix = '', suffix = '', decimals = 1, length = 100,
