@@ -77,11 +77,12 @@ class EEMD_Clustered_SVR_PSO_LSTM:
         print(f"Calculating emds and clustering")
         clusters = self.emd_calculation_and_clustering(ts)
         print(f"Training SVR on high frequency cluster")
-        (X_train, y_train), (X_test, y_test), (X_val, y_val) = DataLoader(clusters[0]
-                                                                          ).window_split_train_select_val_x_y(0.8,
-                                                                                                              0.8,
-                                                                                                              30,
-                                                                                                              1)
+        dl = DataLoader(clusters[0][:floor(len(clusters[0]) * 0.8 * 0.8)])
+        (X_train, y_train) = dl.window_split_x_y(30, 1)
+        dl = DataLoader(clusters[0][floor(len(clusters[0]) * 0.8 * 0.8):floor(len(sig) * 0.8)])
+        (X_test, y_test) = dl.window_split_x_y(30, 1)
+        dl = DataLoader(clusters[0][floor(len(clusters[0]) * 0.8):])
+        (X_val, y_val) = dl.window_split_x_y(30, 1)
         self.svr_high_freq(X_train, y_train)
         print(f"Testing SVR:")
         print(f"MSE = {self.test_svr(X_test,y_test)}")
@@ -109,7 +110,7 @@ class EEMD_Clustered_SVR_PSO_LSTM:
 
 
 if __name__ == "__main__":
-    TEST = 5
+    TEST = 4
 
     if TEST == 0:
         sig = np.linspace(0, 1, 200)
