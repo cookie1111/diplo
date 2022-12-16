@@ -93,11 +93,11 @@ class EEMD_Clustered_SVR_PSO_LSTM:
 
         for i in range(1,len(clusters)):
             print(f"Training on {legend[i]}")
-            train_dataset = SequenceDataset(sig[:floor(len(sig) * 0.8 * 0.8)], target_len=target_length,
+            train_dataset = SequenceDataset(clusters[i][:floor(len(clusters[i]) * 0.8 * 0.8)], target_len=target_length,
                                             sequence_length=sequence_length)
-            test_dataset = SequenceDataset(sig[floor(len(sig) * 0.8 * 0.8):floor(len(sig) * 0.8)],
+            test_dataset = SequenceDataset(clusters[i][floor(len(clusters[i]) * 0.8 * 0.8):floor(len(sig) * 0.8)],
                                            target_len=target_length, sequence_length=sequence_length)
-            val_dataset = SequenceDataset(sig[floor(len(sig) * 0.8):], target_len=target_length,
+            val_dataset = SequenceDataset(clusters[i][floor(len(clusters[i]) * 0.8):], target_len=target_length,
                                           sequence_length=sequence_length)
             print("dataset:", len(train_dataset), len(test_dataset), len(val_dataset))
             print("mine:", X_train.shape, X_test.shape, X_val.shape)
