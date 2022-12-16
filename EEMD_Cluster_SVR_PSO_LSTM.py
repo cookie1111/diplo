@@ -110,6 +110,28 @@ class EEMD_Clustered_SVR_PSO_LSTM:
             params = self.pso_lstm(train_dataset, test_dataset)
             self.imf_lstms[i] = model_factory_func(sequence_length, target_length, train_test_dataset)(params)
 
+    def test(self, signal, validation_set_ratio):
+        clusters = self.emd_calculation_and_clustering(signal)
+        dloader = DataLoader(clusters[0][floor(len(clusters[0]) * validation_set_ratio):])
+        (X_val, y_val) = dloader.window_split_x_y(30, 1)
+        res = self.test_svr(X_val, y_val)
+
+        legend = ["high frequency", "medium frequency", "low frequency", "residual"]
+        print(f"Training LSTMs:")
+        target_length = self.prediction_size
+        sequence_length = self.window_size - self.prediction_size
+
+        for i in range(1, len(clusters)):
+            print(f"Training on {legend[i]}")
+            val_dataset = SequenceDataset(clusters[i][floor(len(clusters[i]) * 0.8):], target_len=target_length,
+                                          sequence_length=sequence_length)
+            self.imf_lstms[i].
+            print("dataset:", len(train_dataset), len(test_dataset), len(val_dataset))
+            print("mine:", X_train.shape, X_test.shape, X_val.shape)
+            params = self.pso_lstm(train_dataset, test_dataset)
+            self.imf_lstms[i] = model_factory_func(sequence_length, target_length, train_test_dataset)(params)
+
+
 
 if __name__ == "__main__":
     TEST = 4
@@ -132,7 +154,7 @@ if __name__ == "__main__":
         print(len(clustered))
         for i in clustered:
             print(clustered[i].shape)
-            plt.plot(range(len(clustered[i])),clustered[i] )
+            plt.plot(range(len(clustered[i])), clustered[i])
             plt.show()
     if TEST == 2:
         df = pd.read_csv("snp500.csv")

@@ -132,6 +132,13 @@ def train_model(data_loader, model, loss_function, optimizer):
     return avg_loss
 
 
+def eval_model(data_loader, model: LSTM):
+    output = None
+    if
+    with torch.no_grad():
+        for X, y in data_loader:
+            output = model(X)
+
 def test_model(data_loader, model, loss_function):
     num_batches = len(data_loader)
     total_loss = 0
