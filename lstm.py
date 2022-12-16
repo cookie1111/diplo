@@ -134,10 +134,14 @@ def train_model(data_loader, model, loss_function, optimizer):
 
 def eval_model(data_loader, model: LSTM):
     output = None
-    if
     with torch.no_grad():
         for X, y in data_loader:
-            output = model(X)
+            if output is None:
+                output = model(X)
+            else:
+                output = torch.cat((output, model(X)), dim=0)
+    return output
+
 
 def test_model(data_loader, model, loss_function):
     num_batches = len(data_loader)

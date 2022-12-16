@@ -4,10 +4,10 @@ from PyEMD import EMD
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.svm import SVR
-
+import torch
 import utils
 from utils import normalize_ts, DataLoader
-from lstm import factory_func_for_train, SequenceDataset, LSTM, train_model, test_model, model_factory_func
+from lstm import factory_func_for_train, SequenceDataset, LSTM, train_model, test_model, model_factory_func, eval_model
 from math import floor
 import pyswarms as ps
 
@@ -25,6 +25,7 @@ class EEMD_Clustered_SVR_PSO_LSTM:
 
         self.svr = None
         self.imf_lstms = [None]*4
+        self.batch_sizes = [None]*4
 
     # Maybe use entropy to compare
     def emd_calculation_and_clustering(self, ts: np.ndarray) -> dict[int: np.ndarray]:
@@ -108,9 +109,10 @@ class EEMD_Clustered_SVR_PSO_LSTM:
             print("dataset:", len(train_dataset), len(test_dataset), len(val_dataset))
             print("mine:", X_train.shape, X_test.shape, X_val.shape)
             params = self.pso_lstm(train_dataset, test_dataset)
-            self.imf_lstms[i] = model_factory_func(sequence_length, target_length, train_test_dataset)(params)
+            self.batch_sizes[i-1] = params[2]
+            self.imf_lstms[i-1] = model_factory_func(sequence_length, target_length, train_test_dataset)(params)
 
-    def test(self, signal, validation_set_ratio):
+    def test(self, signal, validation_set_ratio, loss_fn):
         clusters = self.emd_calculation_and_clustering(signal)
         dloader = DataLoader(clusters[0][floor(len(clusters[0]) * validation_set_ratio):])
         (X_val, y_val) = dloader.window_split_x_y(30, 1)
@@ -120,16 +122,15 @@ class EEMD_Clustered_SVR_PSO_LSTM:
         print(f"Training LSTMs:")
         target_length = self.prediction_size
         sequence_length = self.window_size - self.prediction_size
-
+        outputs = [None]*(len(clusters)-1)
         for i in range(1, len(clusters)):
             print(f"Training on {legend[i]}")
             val_dataset = SequenceDataset(clusters[i][floor(len(clusters[i]) * 0.8):], target_len=target_length,
                                           sequence_length=sequence_length)
-            self.imf_lstms[i].
-            print("dataset:", len(train_dataset), len(test_dataset), len(val_dataset))
-            print("mine:", X_train.shape, X_test.shape, X_val.shape)
-            params = self.pso_lstm(train_dataset, test_dataset)
-            self.imf_lstms[i] = model_factory_func(sequence_length, target_length, train_test_dataset)(params)
+            val_dloader = torch.DataLoader(val_dataset, batch_size=self.batch_sizes[i-1], shuffle=False)
+            outputs[i-1] = eval_model(val_dloader, self.imf_lstms[i-1])
+        output = sum(outputs) + res
+        print(loss_fn(output, y_val))
 
 
 
