@@ -104,8 +104,6 @@ class LSTM(nn.Module):
         h0 = torch.zeros(self.num_layers, batch_size, self.hidden_dim).requires_grad_()
         c0 = torch.zeros(self.num_layers, batch_size, self.hidden_dim).requires_grad_()
 
-        #print(x.size())
-
         out, (hn, cn) = self.lstm(x, (h0, c0))
 
         out = self.fc(hn[0])

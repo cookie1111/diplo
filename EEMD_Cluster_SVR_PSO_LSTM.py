@@ -14,7 +14,7 @@ import pyswarms as ps
 
 class EEMD_Clustered_SVR_PSO_LSTM:
 
-    def __init__(self, window_size: int, prediction_size: int):
+    def __init__(self, window_size: int, prediction_size: int, device: torch.device):
         self.emd = EMD()
         self.window_size = window_size
         self.prediction_size = prediction_size
@@ -26,6 +26,8 @@ class EEMD_Clustered_SVR_PSO_LSTM:
         self.svr = None
         self.imf_lstms = [None]*4
         self.batch_sizes = [None]*4
+
+        self.device = device
 
     # Maybe use entropy to compare
     def emd_calculation_and_clustering(self, ts: np.ndarray) -> dict[int: np.ndarray]:
@@ -113,10 +115,13 @@ class EEMD_Clustered_SVR_PSO_LSTM:
             self.imf_lstms[i-1] = model_factory_func(sequence_length, target_length, train_test_dataset)(params)
 
     def test(self, signal, validation_set_ratio, loss_fn):
+        dloader_res = DataLoader(signal[floor(signal * validation_set_ratio):])
+        _, y = dloader_res.window_split_x_y(self.window_size, self.prediction_size)
         clusters = self.emd_calculation_and_clustering(signal)
         dloader = DataLoader(clusters[0][floor(len(clusters[0]) * validation_set_ratio):])
         (X_val, y_val) = dloader.window_split_x_y(30, 1)
-        res = self.test_svr(X_val, y_val)
+        print(f"SVR mean square error: {self.test_svr(X_val, y_val)}")
+        res = self.eval_svr(X_val)
 
         legend = ["high frequency", "medium frequency", "low frequency", "residual"]
         print(f"Training LSTMs:")
@@ -124,14 +129,49 @@ class EEMD_Clustered_SVR_PSO_LSTM:
         sequence_length = self.window_size - self.prediction_size
         outputs = [None]*(len(clusters)-1)
         for i in range(1, len(clusters)):
-            print(f"Training on {legend[i]}")
+            print(f"Testing on {legend[i]}")
             val_dataset = SequenceDataset(clusters[i][floor(len(clusters[i]) * 0.8):], target_len=target_length,
                                           sequence_length=sequence_length)
             val_dloader = torch.DataLoader(val_dataset, batch_size=self.batch_sizes[i-1], shuffle=False)
             # TODO could add the individual testing of the particular models
             outputs[i-1] = eval_model(val_dloader, self.imf_lstms[i-1])
+            print(f"Mean square error: {loss_fn(clusters[i][floor(len(clusters[i]) * 0.8):])}")
+
         output = sum(outputs) + res
         print(loss_fn(output, y_val))
+
+    def eval(self, signal, steps_ahead):
+        """
+        Evaluate the model on the given input signal, the signal will be passed through EEMD and then the
+        (window_size) number of datapoints are used for predicting (steps_ahead) number of future points.
+
+        :param signal: whole signal and no just the last part(needed to calculate the IMFS
+        :param steps_ahead: number of steps to predict
+        :return: prediction
+        """
+        clusters = self.emd_calculation_and_clustering(signal)
+        X = clusters[0][-(self.window_size - self.prediction_size):]
+        for i in range(steps_ahead):
+            res = self.eval_svr(X[-(self.window_size - self.prediction_size):])
+            # MIGHT BE PROBLEM IF RES IS IN A WEIRD SHAPE
+            print(res)
+            X = np.concatenate((X, res))
+        # expand X with predicted res
+        legend = ["high frequency", "medium frequency", "low frequency", "residual"]
+        print(f"Training LSTMs:")
+        target_length = self.prediction_size
+        sequence_length = self.window_size - self.prediction_size
+        outputs = torch.tensor([]) * (len(clusters) - 1)
+        for i in range(1, len(clusters)):
+            print(f"Testing on {legend[i]}")
+            X = torch.tensor(clusters[i][-(self.window_size - self.prediction_size):]).to(device=self.device)
+            for j in range(steps_ahead):
+                # TODO could add the individual testing of the particular models
+                res_1 = self.imf_lstms[i - 1](X[-(self.window_size - self.prediction_size):])
+                outputs[i-1] = torch.cat((outputs[i-1], res_1))
+                X = torch.cat((X,res_1))
+
+        return sum(outputs) + res
 
 
 if __name__ == "__main__":
